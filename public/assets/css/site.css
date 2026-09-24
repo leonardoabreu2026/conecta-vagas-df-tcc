@@ -498,3 +498,13 @@ a.cv-plano-dest:hover{border-color:var(--cv-dourado)}
 .pl-link{display:block;margin-top:8px;font-size:13px;font-weight:600;color:var(--cv-azul)}
 .pl-card:target{outline:3px solid var(--cv-dourado);outline-offset:3px}
 @media(prefers-reduced-motion:reduce){a.cv-plano{transition:none}a.cv-plano:hover{transform:none}}
+
+/* ---------- Vitrine rotativa de vagas (página inicial): troca suave de um cartão por vez ---------- */
+[data-rotativo] > *{transition:opacity .45s ease,transform .45s ease}
+[data-rotativo] > .cv-saindo,[data-rotativo] > .cv-entrando{opacity:0;transform:translateY(8px)}
+.cv-rotativo-info{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:-6px 0 12px;font-size:13px;color:var(--cv-cinza)}
+.cv-rotativo-info span{display:inline-flex;align-items:center;gap:5px}
+.cv-rotativo-info .ic{color:var(--cv-dourado)}
+.cv-rotativo-pausa{padding:4px 10px;border:1px solid var(--cv-linha);border-radius:999px;background:#fff;font:inherit;font-size:12.5px;font-weight:600;color:var(--cv-azul);cursor:pointer}
+.cv-rotativo-pausa:hover{background:var(--cv-azul-claro)}
+@media(prefers-reduced-motion:reduce){[data-rotativo] > *{transition:none}}

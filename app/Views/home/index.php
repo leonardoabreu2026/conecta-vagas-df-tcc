@@ -46,9 +46,16 @@
   <div class="cv-wrap">
     <?=cv_titulo_secao('maleta', 'Vagas de Emprego', 'Confira as oportunidades publicadas no Distrito Federal', url('vagas.php'), 'Ver todas as vagas')?>
     <?php if ($vagasCapa): ?>
-      <div class="cv-grade">
+      <?php if ($vagasFila): // vitrine rotativa: um cartão troca por vez, até passarem todas as vagas abertas ?>
+        <p class="cv-rotativo-info"><span><?=icone('raio', 13)?> As vagas se revezam aqui: <?=(int)$totalVagas?> vagas abertas passando pela vitrine.</span>
+          <button type="button" class="cv-rotativo-pausa" data-rotativo-pausa aria-pressed="false">Pausar</button></p>
+      <?php endif; ?>
+      <div class="cv-grade"<?=$vagasFila ? ' data-rotativo="4500" aria-live="off"' : ''?>>
         <?php foreach ($vagasCapa as $v): ?><?=cv_card_vaga($v, $mapaMatch[(int)$v['id']] ?? null, $minhas[(int)$v['id']] ?? null)?><?php endforeach; ?>
       </div>
+      <?php if ($vagasFila): ?>
+        <template data-rotativo-fila><?php foreach ($vagasFila as $v): ?><?=cv_card_vaga($v, $mapaMatch[(int)$v['id']] ?? null, $minhas[(int)$v['id']] ?? null)?><?php endforeach; ?></template>
+      <?php endif; ?>
     <?php elseif (!$dbErro): ?>
       <div class="empty">Nenhuma vaga aberta no momento.</div>
     <?php endif; ?>

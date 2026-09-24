@@ -57,6 +57,32 @@ document.addEventListener('DOMContentLoaded',()=>{
     iniciar();
   });
 
+  // Vitrine rotativa de vagas (página inicial): a cada intervalo, UM cartão esmaece e dá lugar à próxima vaga da fila;
+  // o que sai volta para o fim da fila — assim todas as vagas abertas passam pela vitrine, em rodízio sem fim.
+  // Pausa com o mouse/foco em cima, com a aba escondida ou no botão "Pausar"; parado para quem prefere menos movimento.
+  document.querySelectorAll('[data-rotativo]').forEach(grade=>{
+    const tpl=grade.parentElement.querySelector('template[data-rotativo-fila]'); if(!tpl) return;
+    const fila=[...tpl.content.children], botao=grade.parentElement.querySelector('[data-rotativo-pausa]');
+    const tempo=+grade.dataset.rotativo||4500, calmo=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let vaga=0, sobre=false, parado=calmo;
+    const trocar=()=>{
+      if(sobre||parado||document.hidden||!fila.length) return;
+      const cartoes=[...grade.children]; if(!cartoes.length) return;
+      const velho=cartoes[vaga%cartoes.length], novo=fila.shift().cloneNode(true);
+      vaga=(vaga+1)%cartoes.length;
+      velho.classList.add('cv-saindo');
+      setTimeout(()=>{ novo.classList.add('cv-entrando'); grade.replaceChild(novo,velho); fila.push(velho); velho.classList.remove('cv-saindo');
+        requestAnimationFrame(()=>requestAnimationFrame(()=>novo.classList.remove('cv-entrando'))); },450);
+    };
+    setInterval(trocar,tempo);
+    grade.addEventListener('mouseenter',()=>sobre=true); grade.addEventListener('mouseleave',()=>sobre=false);
+    grade.addEventListener('focusin',()=>sobre=true); grade.addEventListener('focusout',()=>sobre=false);
+    if(botao){
+      const rotulo=()=>{ botao.textContent=parado?'Continuar':'Pausar'; botao.setAttribute('aria-pressed',String(parado)); };
+      rotulo(); botao.addEventListener('click',()=>{ parado=!parado; rotulo(); });
+    }
+  });
+
   // Painel relâmpago da página inicial: um balão de ideia que mostra uma mensagem por vez, em rodízio
   // (quem somos, objetivo, missão, valores, Pix). Pausa com o mouse/foco em cima; quem fecha fica 3 minutos sem vê-lo.
   document.querySelectorAll('[data-relampago]').forEach(r=>{

@@ -33,7 +33,10 @@ final class HomeController extends Controller {
                 }
             } catch (Throwable) {}
         }
+        // Vitrine rotativa: 5 cartões na tela; as demais vagas abertas ficam na fila e vão entrando uma a uma (app.js).
         $vagasCapa = array_slice($vagas, 0, 5);
+        $vagasFila = array_slice($vagas, 5);
+        $totalVagas = count($vagas);
         $cursosCapa = array_slice($cursos, 0, 5);
 
         // Carrossel: todas as imagens da pasta public/assets/img/brasilia/ (basta trocar os arquivos).

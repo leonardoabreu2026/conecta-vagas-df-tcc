@@ -92,6 +92,6 @@ $pixDoacao = Pix::doacao();
 </footer>
 
 <?php if ($pixDoacao !== ''): ?><script src="<?=url('assets/js/vendor/qrcode.js')?>?v=1.4.4"></script><?php endif; ?>
-<script src="<?=url('assets/js/app.js')?>?v=6"></script>
+<script src="<?=url('assets/js/app.js')?>?v=7"></script>
 </body>
 </html>
