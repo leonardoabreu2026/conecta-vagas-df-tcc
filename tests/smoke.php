@@ -79,6 +79,14 @@ $curso = ExtracaoCurso::doTexto('EXCEL AVANÇADO — Curso online e gratuito da 
 confere('ExtracaoCurso: instituição, duração, gratuito e link', $curso['instituicao'] === 'Fundação Bradesco – Escola Virtual' && $curso['duracao'] === '12 horas'
     && $curso['gratuito'] === 1 && $curso['url'] === 'https://www.ev.org.br/cursos/excel', json_encode([$curso['instituicao'], $curso['duracao'], $curso['url']], JSON_UNESCAPED_UNICODE));
 
+$lote = ExtracaoCurso::fichas("Aqui estão:\n**Título:** Excel Básico\n**Tipo:** E-book\n**Modalidade:** EAD\n**Área:** Informática e Excel\n**Link:** [ev](https://www.ev.org.br/x)\n---\nTítulo: Atendimento\nModalidade: Presencial\nCidade: Taguatinga/DF\nGratuito: Não\nPreço: R$ 120,00\nLink: https://www.senac.br/y\n---\nEspero ter ajudado!",
+    ['Informática e Excel', 'Administração e Atendimento']);
+confere('ExtracaoCurso::fichas: lote do Perplexity (markdown, e-book, presencial com cidade, preço, capa da área)', count($lote) === 2
+    && $lote[0]['tipo'] === 'ebook' && $lote[0]['url'] === 'https://www.ev.org.br/x' && $lote[0]['imagem'] === 'assets/img/cursos/curso1.png'
+    && $lote[1]['modalidade'] === 'presencial' && $lote[1]['gratuito'] === 0 && $lote[1]['preco'] === 120.0 && str_contains($lote[1]['descricao'], 'Taguatinga/DF'),
+    json_encode(array_map(fn($c) => [$c['titulo'], $c['tipo'], $c['modalidade'], $c['gratuito'], $c['preco'], $c['url']], $lote), JSON_UNESCAPED_UNICODE));
+confere('ExtracaoCurso::promptPesquisa usa as categorias do sistema', str_contains(ExtracaoCurso::promptPesquisa(['Área X']), 'Área: uma destas: Área X'));
+
 $candidato = ['perfil' => ['cidade' => 'Taguatinga', 'uf' => 'DF', 'nivel_experiencia' => 'junior'], 'competencias' => ['Vendas', 'Excel'],
               'tokens_titulo' => ['vendedor' => true], 'tokens_historico' => [], 'mudanca' => false, 'viagens' => false, 'cnh' => '', 'pcd' => false];
 $r = (new MatchService())->calcular($candidato, ['titulo' => 'Vendedor', 'requisitos' => 'vendas e Excel', 'cidade' => 'Taguatinga', 'uf' => 'DF', 'nivel_experiencia' => 'junior', 'remoto' => 'presencial']);

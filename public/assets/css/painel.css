@@ -263,3 +263,12 @@ body.cv .pn-talento h3{margin:10px 0 2px;font-size:16.5px;color:var(--gf-tinta)}
   .pn-grade{background:none;border:0;padding:0}
   .pn-cartao,.pn-kpi{break-inside:avoid}
 }
+
+/* ---------- Importação em lote de cursos (prompt de pesquisa + fichas) ---------- */
+.imp-passos{margin:12px 0 0;padding-left:20px;display:grid;gap:14px;font-size:14px;color:var(--gf-tinta2)}
+.imp-passos b{color:var(--gf-tinta)}
+.imp-prompt{display:grid;gap:8px;justify-items:start;margin-top:8px}
+.imp-prompt textarea{width:100%;font-family:ui-monospace,Consolas,monospace;font-size:12.5px;background:#fbfcfe}
+.imp-passos form textarea{margin-top:8px}
+.imp-previa{margin-top:16px}
+.imp-previa .table td{vertical-align:top}

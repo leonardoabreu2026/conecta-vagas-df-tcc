@@ -201,7 +201,16 @@ nível, modelo, descrição, requisitos, benefícios, contato, quantidade de vag
 **Cursos** (painel → Cursos e e-books): cola-se a divulgação e o sistema preenche título, instituição, link,
 carga horária, gratuito/preço, modalidade, nível, formato e categoria.
 
-Nada é gravado sem revisão: a extração de vagas e cursos só preenche o formulário.
+**Importação em lote de cursos e e-books** (painel → Cursos e e-books → "Importar vários"):
+1. o painel mostra um **prompt de pesquisa** pronto (`ExtracaoCurso::promptPesquisa`, com as categorias cadastradas)
+   para colar numa IA de pesquisa (Perplexity, ChatGPT); ela responde em **fichas** (Título, Tipo, Instituição,
+   Modalidade, Cidade, Nível, Carga horária, Gratuito, Preço, Área, Link, Descrição), separadas por `---`;
+2. cola-se a resposta inteira: `ExtracaoCurso::fichas()` limpa o Markdown, separa as fichas e passa cada uma pela
+   extração normal (os campos rotulados têm prioridade); presencial guarda a cidade na descrição;
+3. a **prévia** mostra cada ficha como "Pronto", "Sem link válido" ou "Já cadastrado"; só as marcadas são gravadas,
+   publicadas e com a capa padrão da área (`ExtracaoCurso::CAPAS`).
+
+Nada é gravado sem revisão: a extração de vagas e cursos só preenche o formulário (ou a prévia da importação).
 
 ### CRUD do painel
 

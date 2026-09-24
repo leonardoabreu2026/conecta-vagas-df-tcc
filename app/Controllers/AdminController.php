@@ -184,6 +184,48 @@ final class AdminController extends Controller {
                 redirect('admin/pages/cursos.php'.volta_filtros(['tipo', 'q']));
             }
 
+            // IMPORTAÇÃO EM LOTE (resposta do prompt de pesquisa): 1) ler as fichas e mostrar a prévia; 2) cadastrar as marcadas.
+            if ($acao === 'importar_ler') {
+                $nomesCat = array_column($cats, 'nome');
+                $itens = ExtracaoCurso::fichas(post_str('texto_lote'), $nomesCat);
+                foreach ($itens as &$it) {
+                    $it['problemas'] = [];
+                    if ($it['titulo'] === '') $it['problemas'][] = 'sem título';
+                    if (!url_http_valida($it['url'])) $it['problemas'][] = 'sem link válido';
+                    $rep = $dao->buscarRepetido($it['url'], $it['titulo'], $it['instituicao']);
+                    if ($rep) $it['problemas'][] = 'já cadastrado (#'.(int)$rep['id'].')';
+                    $it['alerta'] = !$it['gratuito'] && !$it['preco'] ? 'pago sem preço: entra como gratuito, revise depois' : '';
+                }
+                unset($it);
+                $_SESSION['import_cursos'] = array_slice($itens, 0, 100);
+                flash($itens ? 'info' : 'erro', $itens ? count($itens).' ficha(s) lida(s). Confira a prévia abaixo e cadastre as marcadas.' : 'Nenhuma ficha encontrada. Cole a resposta completa da pesquisa (fichas com "Título:" e "Link:", separadas por ---).');
+                redirect('admin/pages/cursos.php#importar');
+            }
+            if ($acao === 'importar_salvar') {
+                $itens = (array)($_SESSION['import_cursos'] ?? []);
+                $marcados = array_map('intval', array_filter((array)($_POST['itens'] ?? []), 'is_scalar'));
+                $catPorNome = array_column($cats, 'id', 'nome');
+                $ok = 0; $pulados = 0;
+                foreach ($marcados as $i) {
+                    $it = $itens[$i] ?? null;
+                    // Mesmas regras do formulário: título, link http(s), sem repetir.
+                    if (!$it || $it['titulo'] === '' || !url_http_valida($it['url']) || $dao->buscarRepetido($it['url'], $it['titulo'], $it['instituicao'])) { $pulados++; continue; }
+                    $d = [
+                        'categoria_id' => $catPorNome[$it['categoria']] ?? null, 'titulo' => mb_substr($it['titulo'], 0, 255), 'descricao' => (string)$it['descricao'],
+                        'tipo' => enum_val($it['tipo'], CursoDAO::TIPOS, 'curso'), 'modalidade' => enum_val($it['modalidade'], CursoDAO::MODALIDADES, 'ead'),
+                        'nivel' => enum_val($it['nivel'], CursoDAO::NIVEIS, 'iniciante'), 'duracao' => mb_substr((string)$it['duracao'], 0, 50),
+                        'gratuito' => (int)$it['gratuito'] ? 1 : 0, 'preco' => (int)$it['gratuito'] ? null : $it['preco'], 'url' => mb_substr($it['url'], 0, 500),
+                        'imagem' => caminho_imagem_valido((string)$it['imagem']), 'instituicao' => mb_substr((string)$it['instituicao'], 0, 255), 'ativo' => 1,
+                    ];
+                    if (!$d['gratuito'] && ($d['preco'] === null || $d['preco'] <= 0)) { $d['gratuito'] = 1; $d['preco'] = null; } // pago sem preço: publica como gratuito para revisar
+                    $dao->salvar($d) ? $ok++ : $pulados++;
+                }
+                unset($_SESSION['import_cursos']);
+                flash($ok ? 'ok' : 'erro', $ok ? "{$ok} conteúdo(s) cadastrado(s) e publicado(s)".($pulados ? "; {$pulados} pulado(s) (sem link, sem título ou repetido)." : '.') : 'Nenhum conteúdo cadastrado. Marque as fichas que quer importar.');
+                redirect('admin/pages/cursos.php');
+            }
+            if ($acao === 'importar_cancelar') { unset($_SESSION['import_cursos']); redirect('admin/pages/cursos.php'); }
+
             if ($acao === 'extrair') {
                 // Extração de cursos: preenche o formulário para revisão, sem salvar.
                 $extraido = ExtracaoCurso::doTexto(post_str('texto_anuncio'));
@@ -241,6 +283,8 @@ final class AdminController extends Controller {
         $lista = $dao->listar(false, ['q' => $busca]);
         if ($filtroTipo !== '') $lista = array_values(array_filter($lista, fn($c) => $c['tipo'] === $filtroTipo));
         $imagens = imagens_da_pasta('assets/img/cursos');
+        $promptPesquisa = ExtracaoCurso::promptPesquisa(array_column(array_filter($cats, fn($c) => (int)$c['ativo']), 'nome'));
+        $importacao = (array)($_SESSION['import_cursos'] ?? []);
         $title = 'Cursos e e-books';
         $abaAtiva = 'cursos';
         $this->view('admin/cursos', get_defined_vars());

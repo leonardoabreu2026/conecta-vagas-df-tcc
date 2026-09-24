@@ -46,7 +46,7 @@ $ptDescricao = $descricaoPagina ?? 'Vagas de emprego, cursos e e-books gratuitos
 <link rel="stylesheet" href="<?=url('assets/css/site.css')?>?v=10">
 <link rel="stylesheet" href="<?=url('assets/css/portfolio.css')?>?v=3">
 <link rel="stylesheet" href="<?=url('assets/css/anuncios.css')?>?v=1">
-<link rel="stylesheet" href="<?=url('assets/css/painel.css')?>?v=2">
+<link rel="stylesheet" href="<?=url('assets/css/painel.css')?>?v=3">
 </head><body class="cv">
 <a class="cv-pular" href="#conteudo">Pular para o conteúdo</a>
 <header class="cv-topo">

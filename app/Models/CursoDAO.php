@@ -48,6 +48,13 @@ final class CursoDAO {
         }
     }
 
+    /** Conteúdo já cadastrado com o mesmo link ou com o mesmo título e instituição (evita duplicar na importação). */
+    public function buscarRepetido(string $url, string $titulo, string $instituicao): ?array {
+        $s = Database::getConexao()->prepare("SELECT id, titulo FROM cursos WHERE (url<>'' AND TRIM(TRAILING '/' FROM url)=TRIM(TRAILING '/' FROM ?)) OR (titulo=? AND COALESCE(instituicao,'')=?) LIMIT 1");
+        $s->execute([trim($url), trim($titulo), trim($instituicao)]);
+        return $s->fetch() ?: null;
+    }
+
     /** Publicar (1) ou ocultar (0) com um clique. false = conteúdo não existe. */
     public function alterarAtivo(int $id, bool $ativo): bool {
         if (!$this->buscar($id)) return false;

@@ -1,7 +1,8 @@
 <?php
 /**
  * CRUD de cursos/e-books + extração de cursos (rota admin/pages/cursos.php) — só administrador.
- * Recebe de AdminController::cursos(): $form, $extraido, $cats, $lista, $porTipo, $filtroTipo, $busca e $imagens.
+ * Recebe de AdminController::cursos(): $form, $extraido, $cats, $lista, $porTipo, $filtroTipo, $busca, $imagens,
+ * $promptPesquisa (prompt para a IA de pesquisa) e $importacao (fichas lidas, aguardando confirmação).
  */
 $filtrosLista = ['tipo' => $filtroTipo, 'q' => $busca];
 ?>
@@ -9,7 +10,51 @@ $filtrosLista = ['tipo' => $filtroTipo, 'q' => $busca];
 <?php require __DIR__.'/../layouts/admin_nav.php'; ?>
 <?=painel_cabecalho('Cursos e e-books', 'Cursos, e-books e vídeos gratuitos. Cole a divulgação e a máquina de extração preenche o formulário; publique ou oculte pela lista.')?>
 <div class="form" style="max-width:none">
-    <details class="extrator" <?=$extraido || !empty($form['id']) ? '' : 'open'?>>
+    <details class="extrator" id="importar" <?=$importacao ? 'open' : ''?>>
+        <summary>Importar vários de uma vez: pesquise com IA (Perplexity, ChatGPT) e cole a resposta aqui</summary>
+        <ol class="imp-passos">
+            <li><b>Copie o prompt</b> e cole no Perplexity. Ele pesquisa cursos e e-books reais e responde em fichas (título, tipo, instituição, modalidade, cidade, nível, carga horária, preço, área, link e descrição).
+                <div class="imp-prompt">
+                    <label for="imp-prompt" class="sr-only">Prompt de pesquisa</label>
+                    <textarea id="imp-prompt" rows="6" readonly><?=e($promptPesquisa)?></textarea>
+                    <button type="button" class="btn btn-sm" data-copiar="<?=e($promptPesquisa)?>" data-copiado="Prompt copiado!"><span>Copiar prompt</span></button>
+                </div>
+            </li>
+            <li><b>Cole a resposta inteira</b> abaixo e clique em "Ler fichas". A máquina de extração lê cada ficha; nada é salvo ainda.
+                <form method="post">
+                    <input type="hidden" name="csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="acao" value="importar_ler">
+                    <label for="imp-texto" class="sr-only">Resposta da pesquisa</label>
+                    <textarea id="imp-texto" name="texto_lote" rows="8" placeholder="Título: Excel Básico&#10;Tipo: Curso&#10;Instituição: Fundação Bradesco&#10;Modalidade: EAD&#10;...&#10;Link: https://www.ev.org.br/...&#10;---&#10;Título: ..."></textarea>
+                    <div class="form-actions"><button class="btn btn-outline">Ler fichas</button></div>
+                </form>
+            </li>
+            <li><b>Confira a prévia</b> e cadastre os marcados. Cada um entra publicado, com a capa padrão da sua área.</li>
+        </ol>
+        <?php if ($importacao): ?>
+        <form method="post" class="imp-previa">
+            <input type="hidden" name="csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="acao" value="importar_salvar">
+            <div class="table-wrap"><table class="table">
+                <tr><th><span class="sr-only">Importar</span></th><th>Título</th><th>Tipo</th><th>Instituição</th><th>Modalidade</th><th>Área</th><th>Link</th><th>Situação</th></tr>
+                <?php foreach ($importacao as $i => $it): $ruim = !empty($it['problemas']); ?>
+                <tr>
+                    <td><input type="checkbox" name="itens[]" value="<?=(int)$i?>" id="imp-<?=(int)$i?>" <?=$ruim ? 'disabled' : 'checked'?> aria-label="Importar <?=e($it['titulo'])?>"></td>
+                    <td><label for="imp-<?=(int)$i?>"><?=e($it['titulo'] ?: '—')?></label><?php if ($it['duracao'] !== ''): ?><br><small class="meta"><?=e($it['duracao'])?> · <?=e(rotulo($it['nivel']))?></small><?php endif; ?></td>
+                    <td><?=e(rotulo($it['tipo']))?></td>
+                    <td><?=e($it['instituicao'] ?: '—')?></td>
+                    <td><?=e(rotulo($it['modalidade']))?><?=$it['gratuito'] ? '' : '<br><small class="meta">pago</small>'?></td>
+                    <td><?=e($it['categoria'] ?: 'Sem categoria')?></td>
+                    <td class="meta"><?=$it['url'] !== '' ? '<a href="'.e($it['url']).'" target="_blank" rel="noopener">'.e(parse_url($it['url'], PHP_URL_HOST) ?: $it['url']).'<span class="sr-only"> (abre em nova aba)</span></a>' : '—'?></td>
+                    <td><?=$ruim ? painel_status('bloqueado', ucfirst(implode(', ', $it['problemas']))) : ($it['alerta'] !== '' ? painel_status('pausada', ucfirst($it['alerta'])) : painel_status('ativa', 'Pronto'))?></td>
+                </tr>
+                <?php endforeach; ?>
+            </table></div>
+            <div class="form-actions"><button class="btn">Cadastrar marcados</button>
+                <button class="btn btn-outline" name="acao" value="importar_cancelar" formnovalidate>Descartar prévia</button></div>
+        </form>
+        <?php endif; ?>
+    </details>
+
+    <details class="extrator" <?=$extraido || !empty($form['id']) || $importacao ? '' : 'open'?>>
         <summary>Máquina de extração: cole o texto de divulgação e o formulário é preenchido</summary>
         <form method="post" style="margin-top:10px">
             <input type="hidden" name="csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="acao" value="extrair"><input type="hidden" name="id" value="<?=(int)($form['id'] ?? 0)?>">
