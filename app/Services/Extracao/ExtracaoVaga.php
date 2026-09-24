@@ -57,7 +57,24 @@ final class ExtracaoVaga {
     private const GENERICOS = '/^(estamos( contratando)?|contratando|contrata(mos|-se)?|temos( uma)?( vagas?)?|vagas?( abertas?| disponive(l|is)| de emprego| para| aberta)?|'
         .'oportunidades?( de emprego| comercial)?|trabalhe conosco|faca parte( do nosso time| da nossa equipe| do time)?|junte se a nossa equipe|venha fazer parte.*|'
         .'inicio imediato|atencao|enviar curriculo|envie seu curriculo|requisitos|beneficios|salario|local|horario|contato|whatsapp|sua missao|nosso time|time|'
-        .'nossa equipe|urgente|vem ai|novas vagas|processo seletivo|seu futuro.*|aqui.*|faca parte de quem.*|precisa se de)$/';
+        .'nossa equipe|urgente|vem ai|novas vagas|processo seletivo|seu futuro.*|aqui.*|faca parte de quem.*|precisa se de|'
+        // Rótulos de cartaz que não são informação (a informação vem ao lado ou embaixo deles).
+        .'locais de trabalho( formato)?|local de trabalho|formato|escala|beneficios comuns|nossos beneficios|envie seu curriculo( pelo whatsapp)?|'
+        .'junte se ao nosso time|(temos )?outras vagas( tambem)?|trabalho presencial|presencial|contratacao|requisitos da vaga)$/';
+
+    /**
+     * Dicionários de palavras-chave (texto já normalizado: sem acento, minúsculo): classificam qualquer linha do
+     * anúncio mesmo sem título de seção — assim o cadastro herda tudo o que o cartaz diz.
+     */
+    private const PALAVRAS_BENEFICIO = '/r \d|\b(vt|vr|va|vale|vales|plano de saude|plano odontologico|odonto|odontologico|cesta basica|comissao|comissoes|bonus|bonificacao|'
+        .'premiacao|premiacoes|premio|assiduidade|metas atingidas|day off|folga no aniversario|ajuda de custo|beneficios?|refeicao|alimentacao|seguro de vida|gympass|wellhub|'
+        .'totalpass|total pass|plano de carreira|produtividade|gorjeta|gorjetas|plr|participacao nos lucros|convenio|desconto|descontos|auxilio|bolsa|salario|remuneracao|'
+        .'transporte|telemedicina|academia)\b/';
+    private const PALAVRAS_REQUISITO = '/\b(experiencia|experiente|primeiro emprego|sem experiencia|pouca experiencia|ideal para|cnh|curso|cursando|ensino|conhecimento|'
+        .'conhecimentos|disponibilidade|residir|morar|morador|registro|coren|nr ?10|ter |possuir|saber|dominio|formacao|maior de|anos completos|idade|'
+        .'comunicativ|proativ|organizad|responsavel|pontual|pontualidade|dinamic|boa comunicacao|vontade de aprender|pcd)\b/';
+    private const PALAVRAS_HORARIO = '/\b(\d{1,2}\s*x\s*\d{1,2}|escala|horario|horarios|turno|turnos|segunda|terca|quarta|quinta|sexta|sabado|domingo|diurno|noturno|madrugada|'
+        .'folga|folgas|jornada|carga horaria|\d{1,2}h(\d{2})?|a combinar|periodo integral|meio periodo)\b/';
 
     /** Marcas e redes comuns nos anúncios do DF (reconhecidas pelo nome no texto). */
     private const MARCAS = ["McDonald's", 'Subway', 'Giraffas', 'Burger King', "Bob's", 'KFC', "Habib's", 'Outback', 'Coco Bambu', 'Madero', 'Mandaka',
@@ -102,6 +119,18 @@ final class ExtracaoVaga {
         if ($texto === '' && !$destaques) return ['padrao' => ['tipo_vaga', 'nivel_experiencia', 'remoto']] + $r;
 
         $todas = array_values(array_filter(array_map([self::class, 'limparLinha'], explode("\n", $texto))));
+        // HERANÇA do cartaz: o que as outras leituras acharam fora da ordem (letra clara sobre fundo escuro, textos
+        // soltos) também entra na classificação por palavras-chave — mas só as linhas que dizem algo (sem ruído de ícone).
+        $vistas = array_flip(array_map([Competencias::class, 'normalizar'], $todas));
+        foreach ($complemento as $linhaOcr) {
+            // Duas colunas do cartaz lidas na mesma linha, separadas por um ícone que o OCR vira símbolo
+            // ("VT (DF ou GO) © Plano de Saúde"): cada parte é uma informação.
+            foreach (preg_split('/\s*[©®ª¢¥§¶•|]\s*/u', $linhaOcr) ?: [] as $l) {
+                $l = self::limparLinha($l);
+                $k = Competencias::normalizar($l);
+                if ($k !== '' && !isset($vistas[$k]) && self::linhaUtil($l)) { $todas[] = $l; $vistas[$k] = true; }
+            }
+        }
         $tudo = $texto."\n".implode("\n", $complemento);
         $n = Competencias::normalizar($tudo);
 
@@ -111,9 +140,13 @@ final class ExtracaoVaga {
         [$soltas, $secoes] = self::separar($linhas);
 
         // Cargo(s) e título.
-        $r['anunciante'] = self::anunciante($tudo, $linhas, $destaques);
-        $r['cargos'] = self::cargos($linhas);
+        $r['anunciante'] = self::anunciante($tudo, $linhas, $destaques, $ocr['todas'] ?? []);
+        // Cargos: das linhas e também das letras grandes do cartaz (o título decorado nem sempre entra no texto corrido).
+        $r['cargos'] = self::cargos([...$linhas, ...array_slice($destaques, 0, 4)]);
         $r['titulo'] = self::titulo($linhas, $destaques, $complemento, $r['cargos'], $r['anunciante']);
+        // Cargos em letra grande viram o título; os demais do cartaz ("Temos outras vagas também!") vão para a descrição.
+        $noTitulo = array_map([Competencias::class, 'normalizar'], preg_split('/\s*\/\s*/u', $r['titulo']) ?: []);
+        $outras = array_values(array_filter($r['cargos'], fn($c) => !in_array(Competencias::normalizar($c), $noTitulo, true)));
         if (count($r['cargos']) >= 6) $r['avisos'][] = 'O cartaz lista '.count($r['cargos']).' cargos diferentes: confira se é uma vaga só ou uma lista de vagas de vários anunciantes.';
         [$r['salario_minimo'], $r['salario_maximo']] = self::salario($tudo);
         $r['quantidade'] = self::quantidade($n);
@@ -153,14 +186,18 @@ final class ExtracaoVaga {
             $lt = Competencias::normalizar(self::limparTitulo($l));
             if ($lt === '' || in_array($ln, $ignorar, true) || in_array($lt, $ignorar, true) || preg_match(self::GENERICOS, $lt) || !self::temPalavras($l)) continue;
             if (self::ehLocalSolto($ln)) continue; // já vai para o campo cidade
-            if (preg_match('/r \d|\b(vt|vr|va|vale|plano de saude|odonto|odontologico|cesta basica|comissao|comissoes|bonus|premiacao|premiacoes|day off|ajuda de custo|beneficios?|refeicao|alimentacao no local|seguro de vida|gympass|totalpass|total pass|plano de carreira|produtividade|gorjeta)\b/', $ln)) $ben[] = $l;
-            elseif (preg_match('/\b(experiencia|cnh|curso|cursando|ensino|conhecimento|disponibilidade|residir|morar|morador|registro|coren|nr ?10|ter |possuir|saber|dominio|formacao|maior de|anos completos|comunicativ|proativ|organizad)\b/', $ln)) $req[] = $l;
+            if (self::soRotulos($ln)) continue;    // "ESCALA LOCAIS DE TRABALHO FORMATO", "Temos outras vagas também!"
+            if (preg_match(self::PALAVRAS_BENEFICIO, $ln)) $ben[] = $l;
+            elseif (preg_match(self::PALAVRAS_REQUISITO, $ln)) $req[] = $l;
+            elseif (preg_match(self::PALAVRAS_HORARIO, $ln)) $desc[] = $l;
+            elseif (self::ehCargo(self::limparTitulo($l)) && mb_strlen($l) <= 42) continue; // cargo solto: já está no título/"outras vagas"
             else $desc[] = $l;
         }
         foreach (['horario' => 'Horário', 'local' => 'Local'] as $extra => $rot) if (!empty($secoes[$extra])) $desc[] = $rot.': '.implode(' ', $secoes[$extra]);
         if (!isset($secoes['horario']) && preg_match('/\b(\d{1,2})\s*x\s*(\d{1,2})\b/', $n, $m) && in_array($m[1].'x'.$m[2], ['6x1','5x2','12x36','4x2','5x1','6x2'], true)
             && !preg_match('/\b'.$m[1].'\s*x\s*'.$m[2].'\b/', Competencias::normalizar(implode(' ', $desc)))) $desc[] = 'Escala '.$m[1].'x'.$m[2];
-        if (count($r['cargos']) >= 2) $desc[] = 'Cargos: '.implode(', ', $r['cargos']).'.';
+        if ($outras && $r['titulo'] !== '' && count($outras) < count($r['cargos'])) $desc[] = 'Outras vagas no anúncio: '.implode(', ', $outras).'.';
+        elseif (count($r['cargos']) >= 2) $desc[] = 'Cargos: '.implode(', ', $r['cargos']).'.';
         if ($r['quantidade']) $desc[] = 'Quantidade de vagas: '.$r['quantidade'];
         // Frase de abertura montada com o que foi lido ("Grupo Dourado contrata Auxiliar de Cozinha em Águas Claras."),
         // como nas vagas da curadoria — só quando a descrição ainda não apresenta a vaga.
@@ -245,6 +282,7 @@ final class ExtracaoVaga {
     private static function limparLinha(string $l): string {
         $l = preg_replace('/[\x{1F000}-\x{1FAFF}\x{2600}-\x{27BF}\x{FE0F}\x{200D}\x{2B50}\x{2705}\x{274C}\x{E000}-\x{F8FF}]/u', '', $l) ?? $l;
         $l = str_replace(['“', '”', '«', '»', '‘', '’'], ['', '', '', '', '', "'"], $l);
+        $l = preg_replace('/(?<!\d)[ªº]|[©®¢¥§¶£]/u', ' ', $l) ?? $l; // ícones lidos como "ª", "©"… ("3º" ordinal fica)
         // Pedaços de ícone no começo: "(O) ", "Q ", "e ", "4) ", "] ", "O) " ...
         for ($i = 0; $i < 3; $i++) {
             $l = preg_replace('/^\s*(?:[\(\[]?[\p{L}\d]{1,2}[\)\]]|[\p{L}](?=\s+\p{Lu})|[^\p{L}\d\s(+$]+)\s*/u', '', $l, 1, $c) ?? $l;
@@ -255,7 +293,30 @@ final class ExtracaoVaga {
         return trim(preg_replace('/\s{2,}/u', ' ', $l) ?? $l);
     }
 
+    /**
+     * Linha das leituras extras (esparsa/negativo) que vale herdar: tem palavra-chave de vaga (benefício, requisito,
+     * horário, cargo) ou é texto de verdade (2+ palavras de 4+ letras, quase só letras) — descarta restos de ícone e foto.
+     */
+    private static function linhaUtil(string $l): bool {
+        $semEspaco = preg_replace('/\s+/u', '', $l) ?? '';
+        if ($semEspaco === '' || preg_match('/[£“”º]/u', $l)) return false;
+        if (preg_match_all('/[\p{L}\d]/u', $semEspaco) / mb_strlen($semEspaco) < 0.8) return false;
+        $n = Competencias::normalizar($l);
+        if (preg_match(self::PALAVRAS_BENEFICIO, $n) || preg_match(self::PALAVRAS_REQUISITO, $n) || preg_match(self::PALAVRAS_HORARIO, $n) || self::ehCargo(self::limparTitulo($l))) {
+            return self::temPalavras($l);
+        }
+        return preg_match_all('/\b\p{L}{4,}\b/u', $l) >= 2;
+    }
+
+    /** Linha feita só de rótulos do cartaz (sem informação própria) ou do aviso "temos outras vagas também". */
+    private static function soRotulos(string $ln): bool {
+        if (preg_match('/\b(temos|outras|oulras|outra)\b.{0,12}\bvagas\b|\bvagas tambem\b/', $ln)) return true;
+        $resto = preg_replace('/\b(escala|locais|local|de|do|da|trabalho|formato|horario|beneficios|comuns|salario|contratacao|modelo|requisitos|cargo|vaga|vagas)\b/', '', $ln) ?? $ln;
+        return trim($resto) === '';
+    }
+
     private static function temPalavras(string $l): bool {
+        if (preg_match('/^\W*(VT|VR|VA|PLR)\b/u', $l)) return true; // benefício em sigla: "VT (DF ou GO)", "VR", "PLR"
         return preg_match_all('/[\p{L}]{3,}/u', $l) >= 1 && preg_match_all('/\p{L}/u', $l) >= 4;
     }
 
@@ -282,6 +343,8 @@ final class ExtracaoVaga {
             // Horário e local são seções curtas: a linha seguinte só entra nelas se for continuação
             // ("Segunda a sábado", "Shopping X"); senão ("Salário: R$ ... + VT") volta a ser classificada.
             if (in_array($atual, ['horario', 'local'], true) && !self::continuaSecao($atual, $l)) $atual = null;
+            // Linha de dinheiro/benefício logo depois dos requisitos ("Bolsa-auxílio de R$ 750 + VT") não é requisito.
+            if ($atual === 'requisitos' && preg_match('/r \d|\b(salario|bolsa|vt|vr|va|vale|beneficios?|remuneracao)\b/', Competencias::normalizar($l))) $atual = null;
             if ($atual === null) $soltas[] = $l; else $sec[$atual][] = $l;
         }
         return [$soltas, $sec];
@@ -301,6 +364,14 @@ final class ExtracaoVaga {
             $l = trim($l);
             $k = Competencias::normalizar($l);
             if ($k === '' || isset($vistos[$k]) || !self::temPalavras($l)) continue;
+            // A mesma frase lida duas vezes pelo OCR ("Primeiro emprego" / "Tdeal Primeiro emprego",
+            // "ou pouca experiência" / "ou pOUC a ex eriência"): fica só a primeira.
+            $c = str_replace(' ', '', $k);
+            foreach (array_keys($vistos) as $v) {
+                $cv = str_replace(' ', '', (string)$v);
+                similar_text($c, $cv, $pct);
+                if ($pct >= 78 || (strlen($c) >= 8 && str_contains($cv, $c))) continue 2; // quase igual, ou pedaço de uma linha já guardada
+            }
             $vistos[$k] = true;
             $out[] = $l;
         }
@@ -360,7 +431,14 @@ final class ExtracaoVaga {
                 }
             }
         }
-        // 2) Lista de cargos no cartaz: até 3 no título; lista grande vira "Vagas abertas — Empresa".
+        // 2) Vários cargos no cartaz: os escritos com as MAIORES letras são os da vaga ("GERENTE e VENDEDORA");
+        //    os pequenos costumam ser "temos outras vagas também". Até 3 no título.
+        if (count($cargos) >= 2 && $destaques) {
+            $grandes = array_map(fn($d) => Competencias::normalizar(self::limparTitulo($d)), array_slice($destaques, 0, 4));
+            $principais = array_values(array_filter($cargos, fn($c) => in_array(Competencias::normalizar($c), $grandes, true)));
+            if ($principais) return implode(' / ', array_slice($principais, 0, 3));
+        }
+        // Lista de cargos no cartaz: até 3 no título; lista grande vira "Vagas abertas — Empresa".
         if (count($cargos) > 5) return $anunciante !== '' ? 'Vagas abertas — '.$anunciante : implode(' / ', array_slice($cargos, 0, 3)).' e outras';
         if (count($cargos) >= 2) return implode(' / ', array_slice($cargos, 0, 3));
 
@@ -452,7 +530,7 @@ final class ExtracaoVaga {
 
     // ------------------------------------------------------------------ empresa, contato, salário, local
 
-    private static function anunciante(string $tudo, array $linhas, array $destaques): string {
+    private static function anunciante(string $tudo, array $linhas, array $destaques, array $repetidas = []): string {
         $n = ' '.Competencias::normalizar($tudo).' ';
         // 1) Marcas conhecidas.
         foreach (self::MARCAS as $m) if (str_contains($n, ' '.Competencias::normalizar($m).' ')) return $m;
@@ -463,6 +541,24 @@ final class ExtracaoVaga {
             '/^([\p{Lu}][\p{L}\'’&.]*(?:\s+(?:d[aeo]s?\s+)?[\p{Lu}][\p{L}\'’&.]*){0,3})\s+-\s+[\p{L}\s]+\/(?:DF|GO)\s+est[aá]/mu',
         ];
         foreach ($pad as $rx) if (preg_match($rx, $tudo, $m)) { $nome = self::nomeEmpresa($m[1]); if ($nome !== '') return $nome; }
+        // 2b) Nome repetido no cartaz (logo no topo e no rodapé: "DOM CASERO" … "DOM CASERO"): 2 a 4 palavras em
+        //     maiúsculas, sem números, que não sejam cargo, rótulo ou palavra-chave de vaga, lido 2+ vezes.
+        $contagem = [];
+        foreach ($repetidas as $l) {
+            $l = self::limparLinha($l);
+            $k = Competencias::normalizar($l);
+            $palavras = str_word_count($k);
+            if ($palavras < 2 || $palavras > 4 || preg_match('/\d/', $l) || $l !== mb_strtoupper($l) || self::ehCargo($l) || preg_match(self::GENERICOS, $k)
+                || preg_match(self::PALAVRAS_BENEFICIO, $k) || preg_match(self::PALAVRAS_REQUISITO, $k) || preg_match(self::PALAVRAS_HORARIO, $k)
+                || preg_match('/\b(vaga|vagas|local|locais|trabalho|curriculo|whatsapp|contato|envie|time|equipe|emprego|formato|clt|pj|brasilia|df)\b/', $k)) continue;
+            $contagem[$k] = [($contagem[$k][0] ?? 0) + 1, $contagem[$k][1] ?? $l];
+        }
+        uasort($contagem, fn($a, $b) => $b[0] <=> $a[0]);
+        foreach ($contagem as [$vezes, $original]) {
+            if ($vezes < 2) break;
+            $nome = self::nomeEmpresa($original);
+            if ($nome !== '') return $nome;
+        }
         // 3) Linha com o tipo do negócio: "Restaurante Prosa di Minas em", "Kairós Restaurante", "Grupo Viver Bem Seguros".
         foreach (array_merge($linhas, $destaques) as $l) {
             $ln = Competencias::normalizar($l);
@@ -535,12 +631,14 @@ final class ExtracaoVaga {
                 if (preg_match('/^\s*(por dia|dia|ao dia|por km|mes|mensal de vale|de vale|ou mais)\b/', $depois)) continue;
                 $v = decimal_ou_null($m[1][0]);
                 if ($v === null || $v < 500 || $v > 30000) continue;
-                $candidatos[] = ['v' => $v, 'forte' => (bool)preg_match('/\b(salario|remuneracao|bolsa|fixo|base|ganhos?|mensal)\b/', $antes.' '.Competencias::normalizar($m[0][0]))];
+                // "sal[a-z]{1,4}rio": aceita o "salário" mal lido pelo OCR ("saLÁário" → "salaario").
+                $candidatos[] = ['v' => $v, 'forte' => (bool)preg_match('/\b(sal[a-z]{1,4}rio|remuneracao|bolsa|fixo|base|ganhos?|mensal)\b/', $antes.' '.Competencias::normalizar($m[0][0]))];
             }
         }
         if (!$candidatos) return [null, null];
-        $fortes = array_filter($candidatos, fn($c) => $c['forte']);
-        $valores = array_column($fortes ?: $candidatos, 'v');
+        $fortes = array_column(array_filter($candidatos, fn($c) => $c['forte']), 'v');
+        // Com salário declarado, os outros valores só entram se forem da mesma ordem (cartaz com dois cargos e dois salários).
+        $valores = $fortes ? array_filter(array_column($candidatos, 'v'), fn($v) => $v >= min($fortes) * 0.5 && $v <= max($fortes) * 2) : array_column($candidatos, 'v');
         return [min($valores), max($valores)];
     }
 

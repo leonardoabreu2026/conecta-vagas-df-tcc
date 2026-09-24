@@ -60,6 +60,13 @@ $titulos = array_map(fn($t) => ExtracaoVaga::doTexto($t)['titulo'], [
     "Desenvolvedor PHP Júnior\nModelo híbrido - Brasília/DF",
 ]);
 confere('ExtracaoVaga: títulos (código da vaga, "contratando X", "Temporário -", siglas)', $titulos === ['Estágio em Enfermagem', 'Atendente de lanchonete', 'Operador de Caixa', 'Desenvolvedor PHP Júnior'], json_encode($titulos, JSON_UNESCAPED_UNICODE));
+$cartaz = ExtracaoVaga::doTexto("DOM CASERO\nVENDEDORA\nIdeal Primeiro emprego\nsaLÁário: R$ 2.700,00\nSALÁRIO: R$ 2.110,00\nRequisitos: cursando Administração\nBolsa de R$ 900 + VT\nVT (DF ou GO)\nPremiação por assiduidade\nPremiação por assiduidade.\nTemos outras vagas também!",
+    ['destaques' => ['VENDEDORA', 'GERENTE'], 'complemento' => [], 'todas' => ['DOM CASERO', 'DOM CASERO', 'VENDEDORA']]);
+confere('ExtracaoVaga (cartaz): empresa repetida, cargos grandes, faixa salarial, VT e sem linha repetida',
+    $cartaz['anunciante'] === 'Dom Casero' && $cartaz['titulo'] === 'Vendedora / Gerente' && $cartaz['salario_minimo'] === 900.0 && $cartaz['salario_maximo'] === 2700.0
+    && str_contains($cartaz['beneficios'], 'VT (DF ou GO)') && substr_count($cartaz['beneficios'], 'Premiação por assiduidade') === 1
+    && str_contains($cartaz['beneficios'], 'Bolsa') && !str_contains($cartaz['requisitos'], 'Bolsa') && !str_contains($cartaz['descricao'], 'outras vagas'),
+    json_encode([$cartaz['anunciante'], $cartaz['titulo'], $cartaz['salario_minimo'], $cartaz['salario_maximo'], $cartaz['beneficios'], $cartaz['requisitos']], JSON_UNESCAPED_UNICODE));
 $rel = ExtracaoVaga::relatorio($vaga, 'Vendas');
 confere('ExtracaoVaga::relatorio conta lidos, padrão e faltando', $rel['lidos'] + $rel['padrao'] + $rel['faltando'] === count($rel['itens']) && $rel['lidos'] >= 5
     && in_array('nivel_experiencia', array_column(array_filter($rel['itens'], fn($i) => $i['status'] === 'padrao'), 'campo'), true), json_encode([$rel['lidos'], $rel['padrao'], $rel['faltando']]));
