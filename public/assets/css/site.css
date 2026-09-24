@@ -220,7 +220,7 @@ body.cv .progress{border-radius:3px}
 .cv-rodape .cv-btn{color:#fff;text-decoration:none}
 .cv-rodape-nota{font-size:12.5px!important;color:#8e9bb0}
 /* Doação no rodapé: um cantinho discreto, alinhado à direita, com QR pequeno */
-.cv-doacao{display:flex;align-items:center;gap:12px;max-width:420px;margin:0 0 18px auto;padding:10px 12px;border:1px solid #ffffff1f;border-radius:10px;background:#ffffff08}
+.cv-doacao{display:flex;align-items:center;gap:12px;margin-top:18px}
 .cv-rodape .cv-doacao p{margin:0;font-size:12.5px;line-height:1.45;color:#aebbd0}
 .cv-rodape .cv-doacao p b{display:inline-flex;align-items:center;gap:5px;color:#dbe5f2}
 .cv-doacao p b .ic{color:#ff9db5}
@@ -232,7 +232,7 @@ body.cv .progress{border-radius:3px}
 .cv-doacao-pendente span{font-size:9.5px;font-weight:700;line-height:1.2;color:#7a2745}
 .cv-doacao-config{margin:0 auto;padding:8px 16px;background:#3a2a00;color:#ffe08a;font-size:12.5px}
 .cv-doacao-config code{color:#fff}
-@media (max-width:640px){.cv-doacao{margin:0 0 18px;max-width:none}}
+img.cv-doacao-codigo{display:block;object-fit:contain}
 .cv-rodape-base{border-top:1px solid #ffffff1a;background:#0b1422;font-size:12.5px;color:#8e9bb0}
 .cv-rodape-base .cv-wrap{display:flex;justify-content:space-between;gap:10px;padding-top:12px;padding-bottom:12px}
 .cv-topo-btn{position:absolute;right:24px;top:-22px;width:44px;height:44px;border-radius:50%;background:var(--cv-azul);color:#fff!important;display:grid;place-items:center;box-shadow:0 4px 12px #0005}

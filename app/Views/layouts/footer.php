@@ -9,9 +9,6 @@ $pixDoacao = Pix::doacao();
 </main>
 
 <footer class="cv-rodape">
-  <?php if ($pixDoacao === '' && isAdmin()): ?>
-  <div class="cv-wrap cv-doacao-config" role="note">Falta a chave Pix: informe <code>DOACAO_PIX_CHAVE</code> em config/config.php para o QR Code de doação funcionar (até lá os visitantes veem "Pix em breve"). Só administradores veem este aviso.</div>
-  <?php endif; ?>
   <div class="cv-wrap cv-rodape-grade">
     <div>
       <h2>Conecta Vagas DF</h2>
@@ -23,6 +20,11 @@ $pixDoacao = Pix::doacao();
       <?php else: ?>
         <a class="cv-btn cv-btn-verde" href="<?=url('admin/pages/vagas.php')?>">Publicar vaga</a>
       <?php endif; ?>
+      <?php // Doação: logo abaixo, simples — o QR Code e uma frase (a mesma mensagem passa no painel relâmpago). ?>
+      <div class="cv-doacao" id="apoie">
+        <?=cv_doacao_qr($pixDoacao, 96)?>
+        <p><b><?=icone('coracao', 13)?> <?=e(DOACAO_TITULO)?></b><br><?=e(DOACAO_TEXTO)?></p>
+      </div>
     </div>
     <div>
       <h2>Navegação</h2>
@@ -78,14 +80,6 @@ $pixDoacao = Pix::doacao();
         <li><?=icone('local', 16)?> Brasília - DF</li>
         <li><a href="<?=url('contrato.php')?>">Termo de privacidade (LGPD)</a></li>
       </ul>
-    </div>
-  </div>
-  <?php // Doação: discreta, no canto do rodapé (a mesma mensagem passa no painel relâmpago da página inicial). ?>
-  <div class="cv-wrap">
-    <div class="cv-doacao" id="apoie">
-      <?=cv_doacao_qr($pixDoacao, 72)?>
-      <p><b><?=icone('coracao', 13)?> <?=e(DOACAO_TITULO)?></b><br><?=e(DOACAO_TEXTO)?></p>
-      <?=cv_doacao_copiar($pixDoacao, 'cv-doacao-copiar-link')?>
     </div>
   </div>
   <div class="cv-rodape-base">

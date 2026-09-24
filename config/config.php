@@ -57,9 +57,12 @@ define('LOG_DIR', ROOT_DIR.DIRECTORY_SEPARATOR.'storage'.DIRECTORY_SEPARATOR.'lo
 // ------------------------------------------------------------
 // Doação (QR Code Pix do rodapé)
 // ------------------------------------------------------------
-// Coloque aqui a chave Pix que recebe as doações (CPF, CNPJ, e-mail, celular no formato
-// +5561999999999 ou chave aleatória). Vazia = o bloco de doação não aparece para os visitantes
-// (o administrador vê um aviso para configurar). Nome até 25 e cidade até 15 letras, sem acento.
+// Imagem do QR Code de doação (rodapé e painel relâmpago). Para usar o seu QR real, gerado no app do
+// banco, substitua o arquivo public/assets/img/doacao/qrcode-pix.svg (ou aponte aqui para um .png/.jpg).
+// O arquivo que vem com o projeto é um QR FICTÍCIO, só para marcar o lugar.
+define('DOACAO_QR_IMAGEM', 'assets/img/doacao/qrcode-pix.svg');
+// Opcional: com a chave Pix aqui (CPF, CNPJ, e-mail, celular +5561999999999 ou chave aleatória), o site
+// gera o QR sozinho no lugar da imagem acima. Nome até 25 e cidade até 15 letras, sem acento.
 define('DOACAO_PIX_CHAVE', getenv('DOACAO_PIX_CHAVE') ?: '');
 define('DOACAO_NOME', getenv('DOACAO_NOME') ?: 'Conecta Vagas DF');
 define('DOACAO_CIDADE', getenv('DOACAO_CIDADE') ?: 'Brasilia');

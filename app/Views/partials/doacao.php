@@ -15,6 +15,11 @@ const DOACAO_TEXTO = 'Gostou do nosso trabalho? Ajude a manter o site no ar com 
 /** QR Code (ou o aviso "em configuração") num quadro branco. $tam em px. */
 function cv_doacao_qr(string $pix, int $tam = 80): string {
     if ($pix === '') {
+        // Sem chave Pix: a imagem do QR (config DOACAO_QR_IMAGEM — por padrão um QR fictício, para trocar depois).
+        $img = defined('DOACAO_QR_IMAGEM') ? caminho_imagem_valido((string)DOACAO_QR_IMAGEM) : '';
+        if ($img !== '' && is_file(PUBLIC_DIR.DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, $img))) {
+            return '<img class="cv-doacao-codigo" src="'.e(url($img)).'" width="'.$tam.'" height="'.$tam.'" alt="QR Code Pix para doação ao Conecta Vagas DF" loading="lazy">';
+        }
         return '<div class="cv-doacao-codigo cv-doacao-pendente" style="width:'.$tam.'px;height:'.$tam.'px" role="img" aria-label="QR Code Pix em configuração">'
              .icone('coracao', (int)round($tam / 4)).'<span>Pix em<br>breve</span></div>';
     }
