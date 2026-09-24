@@ -1,0 +1,9 @@
+# Arquivos enviados pelos usuários e registros: não vão para o repositório.
+storage/uploads/*
+storage/logs/*
+!storage/uploads/.gitkeep
+!storage/logs/.gitkeep
+*.log
+.env
+.DS_Store
+Thumbs.db

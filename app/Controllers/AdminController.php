@@ -1,0 +1,223 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * Painel administrativo: visão geral (também usada pela empresa) e os CRUDs
+ * exclusivos do administrador — usuários, categorias e cursos/e-books.
+ * As telas do painel que a empresa usa (vagas, candidaturas...) ficam em EmpresaController.
+ */
+final class AdminController extends Controller {
+    /**
+     * admin/index.php — dashboard (estilo Power BI): indicadores + gráficos + listas recentes.
+     * Administrador: o sistema todo; empresa: só as vagas e candidaturas dela.
+     * Os números já vêm agrupados do banco (GROUP BY nos DAOs), sem uma consulta por linha.
+     */
+    public function painel(): void {
+        exigirLogin();
+        if (isCandidato()) redirect('view/perfil/index.php');
+
+        $usuarioId = (int)$_SESSION['usuario_id'];
+        $vagaDao = new VagaDAO();
+        $candDao = new CandidaturaDAO();
+        $dias = 30; // janela dos gráficos de atividade
+        $perfil = isEmpresa() ? (new PerfilDAO())->obterOuCriar($usuarioId) : null;
+        $pid = $perfil ? (int)$perfil['id'] : null; // null = administrador (tudo)
+        if (isEmpresa() && !$pid) $pid = -1;         // sem perfil: nenhuma vaga, em vez de ver tudo
+
+        $resumoVagas = $vagaDao->resumoPainel($pid);
+        $porStatus = $candDao->contarPorStatus($pid);
+        $porDia = $candDao->contarPorDia($dias, $pid);
+        $matchCandidaturas = $candDao->resumoMatch($pid);
+        $recentes = $candDao->listarRecentes(8, $pid);
+
+        // Funil de seleção: cada etapa conta quem chegou nela ou passou dela (canceladas ficam de fora).
+        $recebidas = array_sum($porStatus) - $porStatus['cancelada'];
+        $funil = [
+            'Recebidas' => $recebidas,
+            'Analisadas' => $recebidas - $porStatus['enviada'],
+            'Entrevista' => $porStatus['entrevista'] + $porStatus['aprovado'],
+            'Aprovadas' => $porStatus['aprovado'],
+        ];
+
+        if (isAdmin()) {
+            $usuariosPorTipo = (new UsuarioDAO())->contarPorTipo($dias);
+            $novosUsuarios = (new UsuarioDAO())->listarRecentes(5);
+            $vagasPorArea = $vagaDao->contarPorCategoria();
+            $vagasPorCidade = $vagaDao->contarPorCidade();
+            $matchVagas = (new MatchDAO())->resumoVagasAbertas();
+            $planos = (new AssinaturaDAO())->resumoPorPlano();
+            $cursos = (new CursoDAO())->listar(false);
+            $cursosPublicados = count(array_filter($cursos, fn($c) => (int)$c['ativo']));
+            $ebooks = count(array_filter($cursos, fn($c) => (int)$c['ativo'] && $c['tipo'] === 'ebook'));
+            $vagasRecentes = array_slice($vagaDao->listar(false), 0, 6);
+            $isEmpresaPremium = false;
+        } else {
+            $desempenho = $vagaDao->desempenhoPorEmpresa((int)$pid);
+            $isEmpresaPremium = (new AssinaturaDAO())->isEmpresaPremium($usuarioId);
+        }
+
+        $title = 'Painel';
+        $abaAtiva = 'painel';
+        $this->view('admin/painel', get_defined_vars());
+    }
+
+    /**
+     * admin/pages/usuarios.php — CRUD de usuários.
+     * Travas: o administrador não exclui nem rebaixa a própria conta, e o sistema
+     * sempre mantém pelo menos um administrador ativo.
+     */
+    public function usuarios(): void {
+        exigirAdmin();
+        $dao = new UsuarioDAO();
+        $meuId = (int)$_SESSION['usuario_id'];
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            validar_csrf();
+            $acao = post_str('acao');
+            $id = post_int('id');
+
+            if ($acao === 'excluir') {
+                if ($id === $meuId) { flash('erro', 'Você não pode excluir a própria conta.'); redirect('admin/pages/usuarios.php'); }
+                $alvo = $dao->buscarPorId($id);
+                if ($alvo && $alvo['tipo'] === 'admin' && (int)$alvo['ativo'] && $dao->contarAdminsAtivos() <= 1) { flash('erro', 'É preciso manter pelo menos um administrador ativo.'); redirect('admin/pages/usuarios.php'); }
+                $ok = $dao->excluir($id);
+                flash($ok ? 'ok' : 'erro', $ok ? 'Usuário excluído (perfil, currículos, vagas e candidaturas foram removidos junto).' : 'Não foi possível excluir o usuário.');
+                redirect('admin/pages/usuarios.php');
+            }
+
+            $d = [
+                'nome' => mb_substr(post_str('nome'), 0, 255),
+                'email' => normalizar_email(post_str('email')),
+                'tipo' => enum_val(post_str('tipo'), UsuarioDAO::TIPOS, 'candidato'),
+                'telefone' => mb_substr(post_str('telefone'), 0, 30),
+                'ativo' => post_int('ativo', 1) ? 1 : 0,
+                'senha' => is_string($_POST['senha'] ?? null) ? $_POST['senha'] : '',
+            ];
+            $erros = [];
+            if ($d['nome'] === '') $erros[] = 'Informe o nome.';
+            if (!filter_var($d['email'], FILTER_VALIDATE_EMAIL) || strlen($d['email']) > 255) $erros[] = 'E-mail inválido.';
+            if ((!$id || $d['senha'] !== '') && strlen($d['senha']) < 6) $erros[] = 'A senha precisa ter pelo menos 6 caracteres.';
+            if (strlen($d['senha']) > 72) $erros[] = 'A senha pode ter no máximo 72 caracteres.'; // limite do bcrypt
+            if ($id === $meuId && ($d['tipo'] !== 'admin' || !$d['ativo'])) $erros[] = 'Você não pode remover seu próprio acesso de administrador.';
+            if ($erros) { flash('erro', implode(' ', $erros)); redirect('admin/pages/usuarios.php'.($id ? '?edit='.$id : '')); }
+
+            $ok = $id ? $dao->atualizar($id, $d) : (bool)$dao->cadastrar(new UsuarioDTO($d));
+            flash($ok ? 'ok' : 'erro', $ok ? ($id ? 'Usuário atualizado.' : 'Usuário criado'.($d['tipo'] !== 'admin' ? ' com perfil.' : '.')) : ($dao->erro ?: 'Não foi possível salvar.'));
+            redirect('admin/pages/usuarios.php'.(!$ok && $id ? '?edit='.$id : ''));
+        }
+
+        $edit = get_str('edit') !== '' ? $dao->buscarPorId((int)get_str('edit')) : null;
+        $filtroTipo = enum_val(get_str('tipo'), UsuarioDAO::TIPOS, '');
+        $busca = get_str('q');
+        $usuarios = $dao->listar($filtroTipo ?: null, $busca);
+        $title = 'Usuários';
+        $abaAtiva = 'usuarios';
+        $this->view('admin/usuarios', get_defined_vars());
+    }
+
+    /** admin/pages/categorias.php — CRUD de categorias (áreas de vagas e de cursos). */
+    public function categorias(): void {
+        exigirAdmin();
+        $dao = new CategoriaDAO();
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            validar_csrf();
+            $id = post_int('id');
+            if (post_str('acao') === 'excluir') {
+                $ok = $dao->excluir($id);
+                flash($ok ? 'ok' : 'erro', $ok ? 'Categoria excluída. Vagas e cursos que a usavam ficaram sem categoria.' : ($dao->erro ?: 'Categoria não encontrada.'));
+                redirect('admin/pages/categorias.php');
+            }
+            $d = ['nome' => mb_substr(post_str('nome'), 0, 100), 'tipo' => enum_val(post_str('tipo'), CategoriaDAO::TIPOS, 'vaga'), 'ativo' => post_int('ativo', 1) ? 1 : 0];
+            if ($d['nome'] === '') { flash('erro', 'Informe o nome da categoria.'); redirect('admin/pages/categorias.php'); }
+            if ($id && !$dao->buscar($id)) { flash('erro', 'Categoria não encontrada (pode ter sido excluída).'); redirect('admin/pages/categorias.php'); }
+            $ok = $dao->salvar($d, $id);
+            flash($ok ? 'ok' : 'erro', $ok ? 'Categoria salva.' : $dao->erro);
+            redirect('admin/pages/categorias.php'.(!$ok && $id ? '?edit='.$id : ''));
+        }
+
+        $edit = get_str('edit') !== '' ? $dao->buscar((int)get_str('edit')) : null;
+        $cats = $dao->listar();
+        $title = 'Categorias';
+        $abaAtiva = 'categorias';
+        $this->view('admin/categorias', get_defined_vars());
+    }
+
+    /**
+     * admin/pages/cursos.php — CRUD de cursos/e-books + EXTRAÇÃO DE CURSOS:
+     * o administrador cola o texto de divulgação e o formulário é preenchido (nada é salvo sem revisão).
+     */
+    public function cursos(): void {
+        exigirAdmin();
+        $dao = new CursoDAO();
+        $catDao = new CategoriaDAO();
+        $cats = $catDao->listar('curso');
+        $form = null; $extraido = null;
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            validar_csrf();
+            $id = post_int('id');
+            $acao = post_str('acao');
+
+            if ($acao === 'excluir') {
+                $ok = $dao->excluir($id);
+                flash($ok ? 'ok' : 'erro', $ok ? 'Conteúdo excluído.' : 'Conteúdo não encontrado.');
+                redirect('admin/pages/cursos.php');
+            }
+
+            if ($acao === 'extrair') {
+                // Extração de cursos: preenche o formulário para revisão, sem salvar.
+                $extraido = ExtracaoCurso::doTexto(post_str('texto_anuncio'));
+                $cat = $extraido['categoria'] ? $catDao->buscarPorNome($extraido['categoria'], 'curso') : null;
+                $form = $extraido + ['id' => $id, 'categoria_id' => $cat['id'] ?? null, 'imagem' => 'assets/img/cursos/curso1.png', 'ativo' => 1];
+            } else {
+                $d = [
+                    'categoria_id' => post_int('categoria_id') ?: null,
+                    'titulo' => mb_substr(post_str('titulo'), 0, 255),
+                    'descricao' => post_str('descricao'),
+                    'tipo' => enum_val(post_str('tipo'), CursoDAO::TIPOS, 'curso'),
+                    'modalidade' => enum_val(post_str('modalidade'), CursoDAO::MODALIDADES, 'ead'),
+                    'nivel' => enum_val(post_str('nivel'), CursoDAO::NIVEIS, 'iniciante'),
+                    'duracao' => mb_substr(post_str('duracao'), 0, 50),
+                    'gratuito' => isset($_POST['gratuito']) ? 1 : 0,
+                    'preco' => decimal_ou_null(post_str('preco')),
+                    'url' => mb_substr(post_str('url'), 0, 500),
+                    'imagem' => caminho_imagem_valido(mb_substr(post_str('imagem'), 0, 255)),
+                    'instituicao' => mb_substr(post_str('instituicao'), 0, 255),
+                    'ativo' => isset($_POST['ativo']) ? 1 : 0,
+                ];
+                $existente = $id ? $dao->buscar($id) : null;
+                $erros = [];
+                if ($id && !$existente) $erros[] = 'Conteúdo não encontrado (pode ter sido excluído).';
+                if ($d['titulo'] === '') $erros[] = 'Informe o título.';
+                // Só http/https: impede links "javascript:" no botão do curso.
+                if ($d['url'] !== '' && !url_http_valida($d['url'])) $erros[] = 'O link oficial precisa ser um endereço válido começando com http:// ou https://.';
+                if (post_str('imagem') !== '' && $d['imagem'] === '') $erros[] = 'Caminho de imagem inválido (use um arquivo de assets/img ou envie uma imagem).';
+                if ($d['categoria_id'] && !in_array((int)$d['categoria_id'], array_map(fn($c) => (int)$c['id'], $cats), true)) $d['categoria_id'] = null; // só categorias de curso
+                if (!$d['gratuito'] && ($d['preco'] === null || $d['preco'] <= 0)) $erros[] = 'Informe o preço do conteúdo pago (ou marque como gratuito).';
+                if ($d['preco'] !== null && $d['preco'] > 99999999.99) $erros[] = 'Preço fora do intervalo permitido.';
+                $img = salvar_imagem_enviada('imagem_arquivo', 'curso');
+                if ($img === false) $erros[] = 'Imagem inválida (use JPG, PNG ou WEBP até 3 MB).';
+                elseif ($img !== null) $d['imagem'] = $img;
+                if ($erros) {
+                    if ($img) { apagar_upload_sem_uso($img); $d['imagem'] = $existente['imagem'] ?? ''; } // não deixa arquivo órfão
+                    flash('erro', implode(' ', $erros));
+                    $form = $d + ['id' => $id];
+                } else {
+                    $ok = $dao->salvar($d, $id);
+                    if ($ok && $existente && ($existente['imagem'] ?? '') !== $d['imagem']) apagar_upload_sem_uso((string)$existente['imagem']);
+                    flash($ok ? 'ok' : 'erro', $ok ? 'Conteúdo salvo.' : 'Não foi possível salvar.');
+                    redirect('admin/pages/cursos.php');
+                }
+            }
+        }
+
+        $edit = get_str('edit') !== '' ? $dao->buscar((int)get_str('edit')) : null;
+        $form ??= $edit ?? ['id' => 0, 'categoria_id' => null, 'titulo' => '', 'descricao' => '', 'tipo' => 'curso', 'modalidade' => 'ead', 'nivel' => 'iniciante', 'duracao' => '', 'gratuito' => 1, 'preco' => null, 'url' => '', 'imagem' => 'assets/img/cursos/curso1.png', 'instituicao' => '', 'ativo' => 1];
+        $lista = $dao->listar(false);
+        $imagens = imagens_da_pasta('assets/img/cursos');
+        $title = 'Cursos e e-books';
+        $abaAtiva = 'cursos';
+        $this->view('admin/cursos', get_defined_vars());
+    }
+}

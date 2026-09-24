@@ -1,0 +1,68 @@
+/* Estilos do perfil e do portfólio (dono: engenharia de extração/dados). */
+
+/* Links e pretensão no card de Contato do portfólio */
+.pf-contato .pf-link a{color:#1e5bb8;text-decoration:none;word-break:break-all}
+.pf-contato .pf-link a:hover{text-decoration:underline}
+.pf-contato .pf-link .pf-mini,.pf-contato li.small .pf-mini{font-size:11px;font-weight:800;letter-spacing:.2px}
+
+/* Faixa de informações adicionais sem PCD: primeira linha não fica em maiúsculas */
+.pf-extra.sem-pcd p:first-child{text-transform:none;font-size:13.5px}
+
+/* Relatório da extração (só para o dono, logo depois do envio do currículo) */
+.pf-relatorio{background:#fff;border:1px solid #bfdbfe;border-left:5px solid #1e88ff;border-radius:12px;padding:18px 22px;margin:0 0 18px;box-shadow:0 4px 16px #0b3f820a}
+.pf-rel-topo{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:flex-start}
+.pf-relatorio h2{margin:0;font-size:19px;color:#0a3a7a}
+.pf-rel-sub{margin:4px 0 0;color:#64748b;font-size:13px;word-break:break-word}
+.pf-rel-numeros{display:flex;gap:8px;flex-wrap:wrap}
+.pf-rel-numeros span{background:#f3f8ff;border:1px solid #dbe7f7;border-radius:10px;padding:6px 10px;font-size:13px;color:#1f2d45}
+.pf-rel-numeros b{font-size:16px;color:#0b4a9e}
+.pf-rel-aplicar{margin-top:14px;padding:12px 14px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;font-size:14px}
+.pf-rel-aplicar p{margin:0 0 8px;color:#854d0e}
+.pf-rel-opcao{display:flex;gap:10px;align-items:flex-start;font-weight:400;margin:0 0 8px;cursor:pointer}
+.pf-rel-opcao input{width:auto;margin-top:4px;flex:none}
+.pf-rel-opcao small{color:#64748b}
+.pf-rel-detalhes{margin-top:12px}
+.pf-rel-detalhes summary{cursor:pointer;color:#1d4ed8;font-size:14px;font-weight:650}
+.pf-rel-tabela{margin-top:10px;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden}
+.pf-rel-linha{display:grid;grid-template-columns:190px 1fr 140px;gap:12px;padding:8px 12px;border-top:1px solid #eef2f7;font-size:13.5px;align-items:center}
+.pf-rel-linha:first-child{border-top:0}
+.pf-rel-linha:nth-child(even){background:#f8fafc}
+.pf-rel-campo{font-weight:700;color:#0a3a7a}
+.pf-rel-valor{color:#1f2d45;word-break:break-word}
+.pf-rel-status{justify-self:start;font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:normal;text-align:center}
+.pf-rel-status.ok{background:#dcfce7;color:#166534}
+.pf-rel-status.aviso{background:#fef3c7;color:#92400e}
+.pf-rel-status.falta{background:#fee2e2;color:#991b1b}
+.pf-rel-status.neutro{background:#e2e8f0;color:#475569}
+.pf-rel-falta,.pf-rel-match{margin:12px 0 0;font-size:14px;color:#1f2d45}
+.pf-rel-falta a,.pf-rel-match a{color:#1d4ed8}
+
+/* Observações do match (CNH, PCD, viagens) no perfil */
+.match-obs{margin:6px 0 2px;padding:0;list-style:none;font-size:13px}
+.match-obs li{margin:2px 0}
+.match-obs li.ok{color:#166534}
+.match-obs li.falta{color:#92400e}
+
+@media(max-width:700px){
+  .pf-relatorio{padding:14px 14px}
+  .pf-rel-linha{grid-template-columns:1fr;gap:3px}
+  .pf-rel-status{justify-self:start}
+}
+@media print{.pf-relatorio{display:none!important}}
+
+/* ===================== Máquina de match dentro do portfólio ===================== */
+.pf-match{margin-top:20px}
+.pf-match-topo{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.pf-match-topo h2{margin-bottom:0}
+.pf-match-sub{margin:8px 0 14px;font-size:13.5px;color:#5b6677}
+.pf-match-lista{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.pf-match-item{padding:12px 14px;border:1px solid var(--pf-borda);border-radius:6px;background:#fbfdff}
+.pf-match-cab{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.pf-match-tit{font-weight:700;color:var(--pf-titulo);text-decoration:none}
+.pf-match-tit:hover{text-decoration:underline}
+.pf-match-meta{font-size:12.5px;color:#5b6677}
+.pf-match-item .progress{margin:8px 0 4px}
+.pf-match-item summary{cursor:pointer;color:#1257c9;font-size:13px;font-weight:600}
+.pf-match-vip{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px}
+@media (max-width:900px){.pf-match-lista{grid-template-columns:1fr}}
+@media print{.pf-match{display:none!important}}

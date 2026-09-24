@@ -1,0 +1,8 @@
+# Pasta pública: arquivo que existe (CSS, JS, imagem) é entregue pelo Apache;
+# qualquer outro endereço vai para o front controller (index.php).
+Options -Indexes
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^ index.php [QSA,L]
+</IfModule>

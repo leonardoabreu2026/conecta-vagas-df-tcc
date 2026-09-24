@@ -1,0 +1,2 @@
+# Pasta interna: nunca acessível pelo navegador (só o PHP a lê).
+Require all denied
