@@ -5,7 +5,10 @@
  * $assinaturaAtiva e $historicoAssinaturas.
  * As abas "Para candidatos / Para empresas" funcionam só com CSS (botões de opção escondidos).
  */
-$abaEmpresa = $usuarioLogado && isEmpresa();
+// Aba inicial: a pedida no endereço (?aba=empresa, vinda dos cartões da página inicial) ou a do tipo de conta.
+$abaPedida = get_str('aba');
+$abaEmpresa = $abaPedida === 'empresa' || ($abaPedida !== 'candidato' && $usuarioLogado && isEmpresa());
+$linkEntrar = url('login.php?voltar=planos');
 $ehVip      = $usuarioLogado && isCandidato() && $dao->isCandidatoVip($usuarioId);
 $ehPremium  = $usuarioLogado && isEmpresa() && $dao->isEmpresaPremium($usuarioId);
 
@@ -41,10 +44,10 @@ $recursos = static function (array $itens): string {
                     <span class="tag pl-tag-gratis">Gratuito</span>
                 <?php endif; ?>
                 <?php if ($assinaturaAtiva): ?>
-                    <form method="post" onsubmit="return confirm('Deseja realmente cancelar sua assinatura ativa?');">
+                    <form method="post">
                         <input type="hidden" name="csrf" value="<?=e(csrf_token())?>">
                         <input type="hidden" name="acao" value="cancelar">
-                        <button class="pl-cancelar">Cancelar</button>
+                        <button class="pl-cancelar" data-confirm="Deseja realmente cancelar sua assinatura ativa?">Cancelar</button>
                     </form>
                 <?php endif; ?>
             </div>
@@ -61,7 +64,7 @@ $recursos = static function (array $itens): string {
 
         <!-- Candidatos -->
         <div class="pl-grade pl-grade-cand">
-            <article class="pl-card">
+            <article class="pl-card" id="plano-gratuito">
                 <h2>Candidato Gratuito</h2>
                 <p class="pl-desc">Para começar a busca por vagas no DF.</p>
                 <div class="pl-preco">R$ 0 <small>para sempre</small></div>
@@ -75,14 +78,18 @@ $recursos = static function (array $itens): string {
                 ])?>
                 <div class="pl-acao">
                     <?php if ($usuarioLogado && isCandidato() && !$ehVip): ?>
-                        <button class="btn btn-outline" disabled>Seu plano atual</button>
+                        <a href="<?=url('vagas.php')?>" class="btn btn-outline">Seu plano atual · ver vagas</a>
+                    <?php elseif ($ehVip): ?>
+                        <span class="meta">Tudo isso já está incluso no seu VIP.</span>
                     <?php elseif (!$usuarioLogado): ?>
                         <a href="<?=url('cadastro.php')?>" class="btn btn-outline">Cadastrar grátis</a>
+                    <?php else: ?>
+                        <span class="meta">Disponível para contas de candidato</span>
                     <?php endif; ?>
                 </div>
             </article>
 
-            <article class="pl-card pl-destaque">
+            <article class="pl-card pl-destaque" id="plano-vip">
                 <span class="pl-selo">Mais escolhido</span>
                 <h2>Candidato VIP</h2>
                 <p class="pl-desc">Mais visibilidade e mais chances de ser contratado.</p>
@@ -106,7 +113,8 @@ $recursos = static function (array $itens): string {
                             </form>
                         <?php endif; ?>
                     <?php elseif (!$usuarioLogado): ?>
-                        <a href="<?=url('login.php')?>" class="btn">Entrar para assinar</a>
+                        <a href="<?=$linkEntrar?>" class="btn">Entrar para assinar</a>
+                        <a href="<?=url('cadastro.php')?>" class="pl-link">Ainda não tem conta? Cadastre-se</a>
                     <?php else: ?>
                         <span class="meta">Disponível para contas de candidato</span>
                     <?php endif; ?>
@@ -116,7 +124,7 @@ $recursos = static function (array $itens): string {
 
         <!-- Empresas -->
         <div class="pl-grade pl-grade-emp">
-            <article class="pl-card">
+            <article class="pl-card" id="plano-empresa">
                 <h2>Empresa Básica</h2>
                 <p class="pl-desc">Para divulgar vagas de vez em quando.</p>
                 <div class="pl-preco">R$ 0 <small>para sempre</small></div>
@@ -130,14 +138,18 @@ $recursos = static function (array $itens): string {
                 ])?>
                 <div class="pl-acao">
                     <?php if ($usuarioLogado && isEmpresa() && !$ehPremium): ?>
-                        <button class="btn btn-outline" disabled>Seu plano atual</button>
+                        <a href="<?=url('admin/pages/vagas.php')?>" class="btn btn-outline">Seu plano atual · publicar vaga</a>
+                    <?php elseif ($ehPremium): ?>
+                        <span class="meta">Tudo isso já está incluso no seu Premium.</span>
                     <?php elseif (!$usuarioLogado): ?>
                         <a href="<?=url('cadastro.php')?>" class="btn btn-outline">Cadastrar empresa</a>
+                    <?php else: ?>
+                        <span class="meta">Disponível para contas de empresa</span>
                     <?php endif; ?>
                 </div>
             </article>
 
-            <article class="pl-card pl-destaque">
+            <article class="pl-card pl-destaque" id="plano-premium">
                 <span class="pl-selo">Recrutamento Pro</span>
                 <h2>Empresa Premium</h2>
                 <p class="pl-desc">Para quem contrata sempre e precisa de agilidade.</p>
@@ -161,7 +173,8 @@ $recursos = static function (array $itens): string {
                             </form>
                         <?php endif; ?>
                     <?php elseif (!$usuarioLogado): ?>
-                        <a href="<?=url('login.php')?>" class="btn">Entrar para assinar</a>
+                        <a href="<?=$linkEntrar?>" class="btn">Entrar para assinar</a>
+                        <a href="<?=url('cadastro.php')?>" class="pl-link">Ainda não tem conta? Cadastre a empresa</a>
                     <?php else: ?>
                         <span class="meta">Disponível para contas de empresa</span>
                     <?php endif; ?>

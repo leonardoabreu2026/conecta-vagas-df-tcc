@@ -10,26 +10,8 @@ $pixDoacao = Pix::doacao();
 
 <footer class="cv-rodape">
   <?php if ($pixDoacao === '' && isAdmin()): ?>
-  <div class="cv-wrap cv-doacao-config" role="note">Falta a chave Pix: informe <code>DOACAO_PIX_CHAVE</code> em config/config.php para o QR Code de doação funcionar (até lá os visitantes veem "QR Code Pix em configuração"). Só administradores veem este aviso.</div>
+  <div class="cv-wrap cv-doacao-config" role="note">Falta a chave Pix: informe <code>DOACAO_PIX_CHAVE</code> em config/config.php para o QR Code de doação funcionar (até lá os visitantes veem "Pix em breve"). Só administradores veem este aviso.</div>
   <?php endif; ?>
-  <section class="cv-doacao" id="apoie" aria-labelledby="doacao-titulo">
-    <div class="cv-wrap cv-doacao-grade">
-      <div class="cv-doacao-texto">
-        <h2 id="doacao-titulo"><?=icone('coracao', 22)?><?=e(DOACAO_TITULO)?></h2>
-        <p><?=e(DOACAO_TEXTO)?> <strong>Toda ajuda mantém o site no ar, gratuito para quem procura emprego.</strong></p>
-        <ol class="cv-doacao-passos">
-          <li>Abra o app do seu banco e escolha <b>Pix › Ler QR Code</b>.</li>
-          <li>Aponte a câmera para o código ao lado (ou use o "copia e cola").</li>
-          <li>Digite o valor que quiser e confirme. Obrigado!</li>
-        </ol>
-        <?=cv_doacao_copiar($pixDoacao)?>
-      </div>
-      <figure class="cv-doacao-qr">
-        <?=cv_doacao_qr($pixDoacao)?>
-        <figcaption>Pix para <?=e(DOACAO_NOME)?> · valor livre</figcaption>
-      </figure>
-    </div>
-  </section>
   <div class="cv-wrap cv-rodape-grade">
     <div>
       <h2>Conecta Vagas DF</h2>
@@ -98,6 +80,14 @@ $pixDoacao = Pix::doacao();
       </ul>
     </div>
   </div>
+  <?php // Doação: discreta, no canto do rodapé (a mesma mensagem passa no painel relâmpago da página inicial). ?>
+  <div class="cv-wrap">
+    <div class="cv-doacao" id="apoie">
+      <?=cv_doacao_qr($pixDoacao, 72)?>
+      <p><b><?=icone('coracao', 13)?> <?=e(DOACAO_TITULO)?></b><br><?=e(DOACAO_TEXTO)?></p>
+      <?=cv_doacao_copiar($pixDoacao, 'cv-doacao-copiar-link')?>
+    </div>
+  </div>
   <div class="cv-rodape-base">
     <div class="cv-wrap">
       <span>&copy; <?=date('Y')?> Conecta Vagas DF — Todos os direitos reservados.</span>
@@ -108,6 +98,6 @@ $pixDoacao = Pix::doacao();
 </footer>
 
 <?php if ($pixDoacao !== ''): ?><script src="<?=url('assets/js/vendor/qrcode.js')?>?v=1.4.4"></script><?php endif; ?>
-<script src="<?=url('assets/js/app.js')?>?v=5"></script>
+<script src="<?=url('assets/js/app.js')?>?v=6"></script>
 </body>
 </html>

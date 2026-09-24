@@ -43,7 +43,7 @@ $ptDescricao = $descricaoPagina ?? 'Vagas de emprego, cursos e e-books gratuitos
 <?php if (!empty($ogImagem)): ?><meta property="og:image" content="<?=e(url((string)$ogImagem))?>"><?php endif; ?>
 <meta name="theme-color" content="#0b3a8f">
 <link rel="stylesheet" href="<?=url('assets/css/app.css')?>?v=5">
-<link rel="stylesheet" href="<?=url('assets/css/site.css')?>?v=7">
+<link rel="stylesheet" href="<?=url('assets/css/site.css')?>?v=8">
 <link rel="stylesheet" href="<?=url('assets/css/portfolio.css')?>?v=3">
 <link rel="stylesheet" href="<?=url('assets/css/anuncios.css')?>?v=1">
 <link rel="stylesheet" href="<?=url('assets/css/painel.css')?>?v=2">

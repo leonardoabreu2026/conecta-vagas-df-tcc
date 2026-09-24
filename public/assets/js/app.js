@@ -57,11 +57,11 @@ document.addEventListener('DOMContentLoaded',()=>{
     iniciar();
   });
 
-  // Painéis relâmpago da página inicial: um por vez, no canto da tela, em sequência (a doação abre e fecha a roda).
-  // Pausam com o mouse/foco em cima; "›" pula para o próximo; quem fecha fica 3 minutos sem vê-los.
+  // Painel relâmpago da página inicial: um balão de ideia que mostra uma mensagem por vez, em rodízio
+  // (quem somos, objetivo, missão, valores, Pix). Pausa com o mouse/foco em cima; quem fecha fica 3 minutos sem vê-lo.
   document.querySelectorAll('[data-relampago]').forEach(r=>{
     const paineis=[...r.querySelectorAll('.cv-relampago-painel')], barra=r.querySelector('.cv-relampago-barra i');
-    const CHAVE='cv-relampago-fechado', VISIVEL=11000, INTERVALO=5000, INICIO=1500, PAUSA_FECHADO=180000;
+    const CHAVE='cv-relampago-fechado', VISIVEL=9000, INTERVALO=7000, INICIO=4000, PAUSA_FECHADO=180000;
     try{ const f=+sessionStorage.getItem(CHAVE); if(f && Date.now()-f<PAUSA_FECHADO) return; }catch(e){}
     if(!paineis.length) return;
     let n=0, timer=null, restante=VISIVEL, desde=0, aberto=false, pausado=false;

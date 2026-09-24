@@ -219,28 +219,20 @@ body.cv .progress{border-radius:3px}
 .cv-rodape a:hover{color:#fff;text-decoration:underline}
 .cv-rodape .cv-btn{color:#fff;text-decoration:none}
 .cv-rodape-nota{font-size:12.5px!important;color:#8e9bb0}
-/* Apoie o projeto: QR Code Pix de doação, no topo do rodapé */
-.cv-doacao{background:linear-gradient(120deg,#0d2a52,#123a6e 55%,#0f4b3a);border-bottom:1px solid #ffffff1a}
-.cv-doacao-grade{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:28px;align-items:center;padding-top:26px;padding-bottom:26px}
-.cv-rodape .cv-doacao h2{display:flex;align-items:center;gap:8px;margin:0 0 8px;font-size:21px;color:#fff}
-.cv-doacao h2 .ic{color:#ff8a8a}
-.cv-rodape .cv-doacao p{max-width:640px;color:#dbe5f2;font-size:15px}
-.cv-doacao p strong{color:#fff}
-.cv-doacao-passos{margin:10px 0 14px;padding-left:20px;color:#c3cedd;font-size:13.5px;line-height:1.6}
-.cv-doacao-passos b{color:#fff}
-.cv-doacao-copiar{display:inline-flex;align-items:center;gap:8px;border:0;cursor:pointer;font:inherit;font-weight:700}
-.cv-doacao-copiar.copiado{background:#1f9d55}
-.cv-doacao-qr{margin:0;text-align:center}
-.cv-doacao-codigo{display:grid;place-items:center;width:188px;height:188px;padding:6px;background:#fff;border-radius:12px;box-shadow:0 8px 24px #0006}
+/* Doação no rodapé: um cantinho discreto, alinhado à direita, com QR pequeno */
+.cv-doacao{display:flex;align-items:center;gap:12px;max-width:420px;margin:0 0 18px auto;padding:10px 12px;border:1px solid #ffffff1f;border-radius:10px;background:#ffffff08}
+.cv-rodape .cv-doacao p{margin:0;font-size:12.5px;line-height:1.45;color:#aebbd0}
+.cv-rodape .cv-doacao p b{display:inline-flex;align-items:center;gap:5px;color:#dbe5f2}
+.cv-doacao p b .ic{color:#ff9db5}
+.cv-doacao-codigo{display:grid;place-items:center;flex:none;padding:3px;background:#fff;border-radius:6px}
 .cv-doacao-codigo svg{display:block;width:100%;height:100%}
-.cv-doacao-codigo noscript p{color:#1f2d45;margin:0;padding:8px}
-.cv-rodape .cv-doacao figcaption{margin-top:8px;font-size:12.5px;color:#c3cedd}
-.cv-doacao-config{margin:0 auto;padding:10px 16px;background:#3a2a00;color:#ffe08a;font-size:13px;border-bottom:1px solid #ffffff1a}
+.cv-doacao-copiar-link{display:inline-flex;align-items:center;gap:4px;flex:none;padding:5px 8px;border:1px solid #ffffff33;border-radius:6px;background:none;color:#dbe5f2;font:inherit;font-size:12px;cursor:pointer}
+.cv-doacao-copiar-link:hover,.cv-doacao-copiar-link.copiado{background:#ffffff14;color:#fff}
+.cv-doacao-pendente{display:grid!important;place-content:center;justify-items:center;gap:2px;color:#d6336c;text-align:center;background:#fff7fa!important}
+.cv-doacao-pendente span{font-size:9.5px;font-weight:700;line-height:1.2;color:#7a2745}
+.cv-doacao-config{margin:0 auto;padding:8px 16px;background:#3a2a00;color:#ffe08a;font-size:12.5px}
 .cv-doacao-config code{color:#fff}
-@media (max-width:640px){
-  .cv-doacao-grade{grid-template-columns:1fr;justify-items:center;text-align:left}
-  .cv-doacao-texto{width:100%}
-}
+@media (max-width:640px){.cv-doacao{margin:0 0 18px;max-width:none}}
 .cv-rodape-base{border-top:1px solid #ffffff1a;background:#0b1422;font-size:12.5px;color:#8e9bb0}
 .cv-rodape-base .cv-wrap{display:flex;justify-content:space-between;gap:10px;padding-top:12px;padding-bottom:12px}
 .cv-topo-btn{position:absolute;right:24px;top:-22px;width:44px;height:44px;border-radius:50%;background:var(--cv-azul);color:#fff!important;display:grid;place-items:center;box-shadow:0 4px 12px #0005}
@@ -469,53 +461,26 @@ body.cv .cv-faixa h1,body.cv .cv-hero h1,body.cv .profile-head h1,body.cv .pf-ba
   .cv-hero-busca .cv-btn{width:100%}
 }
 
-/* Painéis relâmpago: cartão flutuante no canto, uma cor por tema (--rl), entrada com impulso e ícone pulsando */
-.cv-relampago{--rl:var(--cv-azul);--rl-claro:var(--cv-azul-claro);position:fixed;left:20px;bottom:20px;z-index:45;width:min(400px,calc(100vw - 32px));padding:0;background:#fff;border:1px solid var(--cv-linha);border-radius:10px;box-shadow:0 22px 50px #0a2a6059;opacity:0;transform:translateY(24px) scale(.96);transition:opacity .35s ease,transform .35s ease;overflow:hidden}
+/* Painel relâmpago: um balão de ideia pequeno e delicado no canto da tela (as bolinhas saem do canto, como num pensamento) */
+.cv-relampago{position:fixed;left:26px;bottom:34px;z-index:45;width:min(280px,calc(100vw - 48px));padding:14px 30px 16px 16px;background:#fff;border:1px solid #dbe6f5;border-radius:26px;box-shadow:0 10px 28px #0a2a6026;opacity:0;transform:translateY(10px);transition:opacity .5s ease,transform .5s ease}
+.cv-relampago::before,.cv-relampago::after{content:"";position:absolute;background:#fff;border:1px solid #dbe6f5;border-radius:50%;box-shadow:0 4px 10px #0a2a6018}
+.cv-relampago::before{width:16px;height:16px;left:22px;bottom:-20px}
+.cv-relampago::after{width:9px;height:9px;left:10px;bottom:-31px}
 .cv-relampago[hidden],.cv-relampago-painel[hidden]{display:none}
-.cv-relampago.visivel{opacity:1;transform:none;animation:cv-relampago-entra .6s cubic-bezier(.2,1.4,.4,1),cv-relampago-brilho 1.6s ease-out .2s}
-@keyframes cv-relampago-entra{0%{transform:translateY(40px) scale(.9)}100%{transform:none}}
-@keyframes cv-relampago-brilho{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--rl) 55%,transparent),0 22px 50px #0a2a6059}100%{box-shadow:0 0 0 22px transparent,0 22px 50px #0a2a6059}}
-.cv-relampago:has(.cv-rl-verde:not([hidden])){--rl:#1e8e3e;--rl-claro:#e3f4e8}
-.cv-relampago:has(.cv-rl-roxo:not([hidden])){--rl:#6b3fc4;--rl-claro:#efe8fb}
-.cv-relampago:has(.cv-rl-dourado:not([hidden])){--rl:#b07a00;--rl-claro:#fff4d1}
-.cv-relampago:has(.cv-rl-doacao:not([hidden])){--rl:#d6336c;--rl-claro:#ffe3ec}
-.cv-relampago::before{content:"";display:block;height:5px;background:linear-gradient(90deg,var(--rl),color-mix(in srgb,var(--rl) 40%,#f2b705))}
-.cv-relampago-painel{display:flex;align-items:flex-start;gap:14px;padding:16px 44px 22px 16px}
-.cv-relampago-ic{flex:none;display:grid;place-items:center;width:48px;height:48px;border-radius:50%;background:var(--rl-claro);color:var(--rl);animation:cv-relampago-pulso 1.8s ease-in-out infinite}
-@keyframes cv-relampago-pulso{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--rl) 45%,transparent);transform:scale(1)}50%{box-shadow:0 0 0 10px transparent;transform:scale(1.08)}}
-.cv-relampago-txt{min-width:0}
-.cv-relampago small{display:flex;align-items:center;gap:4px;font-size:11px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--rl)}
-.cv-relampago small em{margin-left:auto;font-style:normal;font-weight:700;color:var(--cv-cinza);letter-spacing:0}
-.cv-relampago b{display:block;margin:3px 0 5px;font-size:19px;line-height:1.2;color:var(--cv-tinta)}
-.cv-relampago p{margin:0;font-size:14.5px;line-height:1.45;color:var(--cv-texto)}
-.cv-relampago-link{display:inline-flex;align-items:center;gap:4px;margin-top:10px;padding:7px 12px;border-radius:6px;background:var(--rl);color:#fff!important;font-size:14px;font-weight:700;text-decoration:none}
-.cv-relampago-link:hover{filter:brightness(1.1)}
-.cv-relampago-pix{display:flex;align-items:center;gap:12px;margin-top:10px}
-.cv-relampago-pix .cv-doacao-codigo{flex:none;padding:4px;border-radius:8px;box-shadow:0 0 0 2px var(--rl-claro)}
-.cv-relampago-pix .cv-doacao-pendente span{font-size:10.5px}
-.cv-btn-p{padding:7px 11px;font-size:13px}
-.cv-relampago-fechar{position:absolute;top:10px;right:6px;width:32px;height:32px;border:0;border-radius:6px;background:none;font-size:24px;line-height:1;color:var(--cv-cinza);cursor:pointer}
+.cv-relampago.visivel{opacity:1;transform:none}
+.cv-relampago-painel{animation:cv-relampago-troca .5s ease}
+@keyframes cv-relampago-troca{from{opacity:0}to{opacity:1}}
+.cv-relampago b{display:flex;align-items:center;gap:6px;margin:0 0 4px;font-size:14.5px;color:var(--cv-azul-esc)}
+.cv-relampago b .ic{color:var(--cv-dourado)}
+.cv-relampago p{margin:0;font-size:13px;line-height:1.45;color:var(--cv-texto)}
+.cv-relampago-pix{display:flex;align-items:center;gap:10px;margin-top:8px}
+.cv-relampago-pix a{font-size:12.5px;font-weight:700;color:var(--cv-azul)}
+.cv-relampago-fechar{position:absolute;top:8px;right:8px;width:24px;height:24px;border:0;border-radius:50%;background:none;font-size:17px;line-height:1;color:#8a95a6;cursor:pointer}
 .cv-relampago-fechar:hover{background:#eef2f7;color:var(--cv-tinta)}
-.cv-relampago-prox{position:absolute;right:6px;bottom:12px;width:32px;height:32px;border:1px solid var(--cv-linha);border-radius:50%;background:#fff;font-size:22px;line-height:1;color:var(--rl);cursor:pointer}
-.cv-relampago-prox:hover{background:var(--rl-claro)}
-.cv-relampago-barra{position:absolute;left:0;right:0;bottom:0;height:4px;background:#eef2f7}
-.cv-relampago-barra i{display:block;width:100%;height:100%;background:var(--rl)}
-@media(max-width:640px){.cv-relampago{left:12px;right:12px;bottom:12px;width:auto}.cv-relampago b{font-size:17px}}
-@media(prefers-reduced-motion:reduce){.cv-relampago{transition:none}.cv-relampago.visivel,.cv-relampago-ic{animation:none}}
-
-/* Faixa de doação da página inicial (logo depois das assinaturas) e QR "em configuração" */
-.cv-doacao-faixa{background:linear-gradient(115deg,#fff0f5 0%,#fff 45%,#eef6ff 100%);border-top:1px solid #f6d3e0;border-bottom:1px solid var(--cv-linha)}
-.cv-doacao-faixa-in{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:32px;align-items:center;padding-top:30px;padding-bottom:30px}
-.cv-doacao-selo{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:#d6336c;color:#fff;font-size:12.5px;font-weight:800;letter-spacing:.3px}
-.cv-doacao-faixa h2{margin:10px 0 8px;font-size:28px;line-height:1.15;color:var(--cv-tinta)}
-.cv-doacao-faixa p{max-width:680px;margin:0;font-size:16px;color:var(--cv-texto)}
-.cv-doacao-faixa .cv-doacao-passos{color:var(--cv-texto)}
-.cv-doacao-faixa .cv-doacao-passos b{color:var(--cv-tinta)}
-.cv-doacao-faixa .cv-doacao-codigo{box-shadow:0 10px 28px #d6336c33,0 0 0 3px #ffd0de}
-.cv-doacao-faixa figcaption{margin-top:8px;font-size:13px;font-weight:700;color:#a3214f;text-align:center}
-.cv-doacao-pendente{display:grid!important;place-content:center;justify-items:center;gap:6px;color:#d6336c;text-align:center;background:repeating-linear-gradient(45deg,#fff,#fff 8px,#fff5f8 8px,#fff5f8 16px)!important}
-.cv-doacao-pendente span{font-size:12.5px;font-weight:700;line-height:1.3;color:#7a2745}
-@media(max-width:760px){.cv-doacao-faixa-in{grid-template-columns:1fr;justify-items:center}.cv-doacao-faixa h2{font-size:23px}}
+.cv-relampago-barra{position:absolute;left:22px;right:22px;bottom:7px;height:2px;border-radius:2px;background:#eef2f7;overflow:hidden}
+.cv-relampago-barra i{display:block;width:100%;height:100%;background:#c9d8ee}
+@media(max-width:640px){.cv-relampago{left:16px;bottom:30px;width:calc(100vw - 32px)}}
+@media(prefers-reduced-motion:reduce){.cv-relampago,.cv-relampago-painel{transition:none;animation:none}}
 @media print{.cv-relampago{display:none!important}}
 
 /* ---------- Acessibilidade: contraste (WCAG AA, 4.5:1) e foco visível em qualquer fundo ---------- */
@@ -523,3 +488,13 @@ body.cv .cv-faixa h1,body.cv .cv-hero h1,body.cv .profile-head h1,body.cv .pf-ba
 .score-badge.excelente{background:#15803d}.score-badge.alto{background:#1d4ed8}.score-badge.medio{background:#b45309}.score-badge.baixo{background:#64748b}
 .pf-vazio,.pl-itens li.off{color:#64748b}
 body.cv :is(a,button,summary,[tabindex]):focus-visible{outline:3px solid #0a3a8c;outline-offset:2px;box-shadow:0 0 0 5px #ffbf47}
+
+/* ---------- Grade de assinaturas da página inicial: cada plano é um botão que leva ao plano na página de planos ---------- */
+a.cv-plano{position:relative;gap:2px;padding:12px 14px 12px;color:inherit;text-decoration:none;transition:border-color .15s,box-shadow .15s,transform .15s}
+a.cv-plano:hover,a.cv-plano:focus-visible{border-color:var(--cv-azul);box-shadow:0 6px 16px #0a2a601f;transform:translateY(-2px)}
+a.cv-plano i{margin-top:4px;font-style:normal;font-size:12.5px;font-weight:700;color:var(--cv-azul)}
+a.cv-plano-dest i{color:#8a5f00}
+a.cv-plano-dest:hover{border-color:var(--cv-dourado)}
+.pl-link{display:block;margin-top:8px;font-size:13px;font-weight:600;color:var(--cv-azul)}
+.pl-card:target{outline:3px solid var(--cv-dourado);outline-offset:3px}
+@media(prefers-reduced-motion:reduce){a.cv-plano{transition:none}a.cv-plano:hover{transform:none}}

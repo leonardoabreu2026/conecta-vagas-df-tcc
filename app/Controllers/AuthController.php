@@ -12,7 +12,11 @@ final class AuthController extends Controller {
      * somando vários IPs) ou do mesmo IP bloqueiam por alguns minutos (limites em config/config.php).
      */
     public function login(): void {
-        if (usuarioLogado()) redirect(destinoPainel());
+        // Volta para onde a pessoa estava (ex.: "Entrar para assinar" nos planos). Só destinos da lista:
+        // nunca um endereço vindo do usuário (evita redirecionamento para outro site).
+        $voltas = ['planos' => 'planos.php'];
+        $voltar = $voltas[post_str('voltar', get_str('voltar'))] ?? null;
+        if (usuarioLogado()) redirect($voltar ?? destinoPainel());
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             $title = 'Entrar';
             $this->view('auth/login', get_defined_vars());
@@ -36,12 +40,12 @@ final class AuthController extends Controller {
             $dao->registrarFalhaLogin($ip, $email);
             // Mensagem única: não revela se o e-mail existe.
             flash('erro', 'E-mail ou senha inválidos ou conta desativada.');
-            redirect('login.php');
+            redirect('login.php'.($voltar ? '?voltar=planos' : ''));
         }
 
         $dao->limparFalhasLogin($ip, $email);
         iniciar_sessao_usuario($u); // novo ID de sessão (evita fixação de sessão) e novo token CSRF
-        redirect(destinoPainel());
+        redirect($voltar ?? destinoPainel());
     }
 
     /**
