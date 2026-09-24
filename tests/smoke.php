@@ -50,6 +50,24 @@ $vaga = ExtracaoVaga::doTexto("VAGA: Vendedor Interno - Taguatinga\nSalário: R$
 confere('ExtracaoVaga: título, salário (ignora o VR) e cidade', $vaga['titulo'] === 'Vendedor Interno' && $vaga['salario_minimo'] === 3000.0
     && $vaga['salario_maximo'] === 5500.0 && $vaga['cidade'] === 'Taguatinga', json_encode([$vaga['titulo'], $vaga['salario_minimo'], $vaga['salario_maximo'], $vaga['cidade']], JSON_UNESCAPED_UNICODE));
 
+$vaga2 = ExtracaoVaga::doTexto("GRUPO DOURADO\nAUXILIAR DE COZINHA\nÁguas Claras - 2 vagas\nHorário: 14h20 às 22h, CLT 6x1\nSalário a partir de R$ 1.900,00 + VT + alimentação no local");
+confere('ExtracaoVaga: "Horário:" não engole o salário/benefícios da linha seguinte', $vaga2['beneficios'] !== '' && $vaga2['salario_minimo'] === 1900.0
+    && $vaga2['anunciante'] === 'Grupo Dourado' && $vaga2['cidade'] === 'Águas Claras', json_encode([$vaga2['beneficios'], $vaga2['salario_minimo'], $vaga2['anunciante'], $vaga2['cidade']], JSON_UNESCAPED_UNICODE));
+$titulos = array_map(fn($t) => ExtracaoVaga::doTexto($t)['titulo'], [
+    "ESTÁGIO EM ENFERMAGEM (cód. 1308)\nLocal: Taguatinga\nBolsa-auxílio de R$ 750,00",
+    "O Giraffas está contratando atendente de lanchonete para o Shopping Boulevard",
+    "Temporário - Operador de Caixa\nLocal: Taguatinga Shopping",
+    "Desenvolvedor PHP Júnior\nModelo híbrido - Brasília/DF",
+]);
+confere('ExtracaoVaga: títulos (código da vaga, "contratando X", "Temporário -", siglas)', $titulos === ['Estágio em Enfermagem', 'Atendente de lanchonete', 'Operador de Caixa', 'Desenvolvedor PHP Júnior'], json_encode($titulos, JSON_UNESCAPED_UNICODE));
+$rel = ExtracaoVaga::relatorio($vaga, 'Vendas');
+confere('ExtracaoVaga::relatorio conta lidos, padrão e faltando', $rel['lidos'] + $rel['padrao'] + $rel['faltando'] === count($rel['itens']) && $rel['lidos'] >= 5
+    && in_array('nivel_experiencia', array_column(array_filter($rel['itens'], fn($i) => $i['status'] === 'padrao'), 'campo'), true), json_encode([$rel['lidos'], $rel['padrao'], $rel['faltando']]));
+confere('Pix: CRC16 do exemplo oficial do Banco Central = 1D3D', Pix::crc16('00020126580014br.gov.bcb.pix0136123e4567-e12b-12d1-a456-4266554400005204000053039865802BR5913Fulano de Tal6008BRASILIA62070503***6304') === '1D3D');
+$pix = Pix::payload('teste@conectavagas.com', 'Conecta Vagas DF', 'Brasília');
+confere('Pix: código copia e cola com CRC válido e cidade sem acento', str_contains($pix, '6008BRASILIA') && substr($pix, -4) === Pix::crc16(substr($pix, 0, -4)), $pix);
+confere('like() trata % e _ como texto', like('50%_off') === '%50\\%\\_off%');
+
 $curso = ExtracaoCurso::doTexto('EXCEL AVANÇADO — Curso online e gratuito da Fundação Bradesco. Carga horária: 12 horas. https://www.ev.org.br/cursos/excel');
 confere('ExtracaoCurso: instituição, duração, gratuito e link', $curso['instituicao'] === 'Fundação Bradesco – Escola Virtual' && $curso['duracao'] === '12 horas'
     && $curso['gratuito'] === 1 && $curso['url'] === 'https://www.ev.org.br/cursos/excel', json_encode([$curso['instituicao'], $curso['duracao'], $curso['url']], JSON_UNESCAPED_UNICODE));
@@ -77,6 +95,9 @@ try {
     $contas = $db->query("SELECT email FROM usuarios WHERE email IN ('admin@conectavagas.com','empresa@conectavagas.com','candidato@conectavagas.com')")->fetchAll(PDO::FETCH_COLUMN);
     confere('contas de teste do database/seed.sql', count($contas) === 3, count($contas).' de 3 encontradas');
     confere('vagas abertas listadas pelo VagaDAO', count((new VagaDAO())->listar(true)) > 0);
+    $cruzadas = (int)$db->query("SELECT COUNT(*) FROM vagas v JOIN categorias c ON c.id=v.categoria_id WHERE c.tipo<>'vaga'")->fetchColumn()
+              + (int)$db->query("SELECT COUNT(*) FROM cursos cu JOIN categorias c ON c.id=cu.categoria_id WHERE c.tipo<>'curso'")->fetchColumn();
+    confere('nenhuma vaga em categoria de curso (nem curso em categoria de vaga)', $cruzadas === 0, "$cruzadas item(ns) na categoria do tipo errado");
 } catch (Throwable $e) {
     confere('conexão com o banco', false, $e->getMessage());
 }

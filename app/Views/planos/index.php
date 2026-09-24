@@ -92,7 +92,7 @@ $recursos = static function (array $itens): string {
                     ['Selo de Candidato VIP no perfil', true],
                     ['Prioridade na lista de candidatos das empresas', true],
                     ['Match completo: todas as vagas compatíveis', true],
-                    ['Sem carência: cancele quando quiser', true],
+                    ['Sem fidelidade: cancele quando quiser', true],
                 ])?>
                 <div class="pl-acao">
                     <?php if ($usuarioLogado && isCandidato()): ?>

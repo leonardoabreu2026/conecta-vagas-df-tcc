@@ -20,6 +20,11 @@ final class CurriculoController extends Controller {
         exigirLogin();
         if (!isCandidato()) negar_acesso('Acesso negado.');
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') redirect('view/perfil/index.php');
+        // Acima do post_max_size do PHP o formulário chega vazio (sem o token): avisa o tamanho, não "sessão expirada".
+        if (!$_POST && !$_FILES && (int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
+            flash('erro', 'O arquivo é grande demais. Envie um currículo de até '.(int)(MAX_FILE_SIZE / 1024 / 1024).' MB.');
+            redirect('view/perfil/index.php');
+        }
         validar_csrf();
 
         $perfilDao = new PerfilDAO();

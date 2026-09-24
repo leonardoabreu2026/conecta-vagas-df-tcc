@@ -166,6 +166,28 @@ body.cv .pn .form h3{margin:0 0 14px;font-size:17px;color:var(--gf-tinta)}
 .pn .btn-gold{background:var(--cv-dourado);color:#1b2433!important}
 .pn .btn-gold:hover{background:#dba600}
 .pn .empty{border-color:var(--gf-borda);background:#fff}
+body.cv .pn .form h2.pn-form-titulo{margin:0 0 14px;font-size:17px;color:var(--gf-tinta)}
+.pn .table .actions{flex-wrap:wrap;gap:6px}
+.pn .table td:last-child{min-width:190px}
+
+/* ---------- Ficha da conta ("Ver" em Usuários) ---------- */
+.pn-ficha{border-left:4px solid var(--cv-azul)!important}
+.pn-ficha-topo{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:10px}
+body.cv .pn-ficha h2{margin:0;font-size:19px;color:var(--gf-tinta)}
+.pn-ficha-topo .meta{margin:3px 0 0}
+.pn-ficha-dados{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin:16px 0 0}
+.pn-ficha-dados div{padding:10px 12px;background:#f6f8fb;border-radius:var(--cv-raio)}
+.pn-ficha-dados dt{font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--gf-mudo)}
+.pn-ficha-dados dd{margin:3px 0 0;font-size:15px;font-weight:600;color:var(--gf-tinta)}
+
+/* ---------- Máquina de extração de vagas ---------- */
+.ex-previa{display:block;max-height:220px;max-width:100%;margin:10px 0 0;border-radius:8px;border:1px solid var(--gf-borda)}
+.ex-aviso{color:#8a4b00}
+.ex-avisos{margin:12px 0 0;padding:10px 14px 10px 30px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;color:#7a4300;font-size:14px}
+.ex-avisos li+li{margin-top:3px}
+.ex-cartaz img{max-height:160px;border-radius:8px;vertical-align:middle;margin-right:6px}
+.ex-destaque{padding:14px;border-radius:12px;background:#f8fafc;border:1px solid var(--cv-linha)}
+.ex-destaque.premium{background:#fefce8;border-color:#fde047}
 
 /* ---------- Candidaturas: fatias por status e cartões ---------- */
 .pn-fatias{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}
@@ -184,6 +206,14 @@ body.cv .pn .form h3{margin:0 0 14px;font-size:17px;color:var(--gf-tinta)}
 .pn-cand-match .score-badge{font-size:20px;padding:9px 12px}
 .pn-cand form label{margin-top:6px;font-size:12.5px}
 .pn-cand textarea{min-height:64px}
+.pn-cand-contato{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+.pn-cand-obs{list-style:none;margin:6px 0 0;padding:0}
+.pn-cand-obs li{position:relative;padding-left:16px}
+.pn-cand-obs li::before{content:"";position:absolute;left:2px;top:.55em;width:7px;height:7px;border-radius:50%;background:#1f8a4c}
+.pn-cand-obs li.aviso::before{background:#c77700}
+.pn-cand-carta{white-space:pre-line}
+.pn-talento .btn-outline{width:100%;margin-top:8px}
+.pn .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
 
 /* ---------- Banco de talentos ---------- */
 .pn-oferta{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:14px 20px;margin:0 0 18px;padding:18px 20px;

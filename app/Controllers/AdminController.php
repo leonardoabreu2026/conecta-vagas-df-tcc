@@ -85,6 +85,12 @@ final class AdminController extends Controller {
                 redirect('admin/pages/usuarios.php');
             }
 
+            if ($acao === 'ativar' || $acao === 'desativar') {
+                $erro = $dao->alterarAtivo($id, $acao === 'ativar', $meuId);
+                flash($erro === '' ? 'ok' : 'erro', $erro === '' ? ($acao === 'ativar' ? 'Conta ativada: o login volta a funcionar.' : 'Conta bloqueada: o login e a sessão aberta perdem o acesso.') : $erro);
+                redirect('admin/pages/usuarios.php'.volta_filtros(['tipo', 'q']));
+            }
+
             $d = [
                 'nome' => mb_substr(post_str('nome'), 0, 255),
                 'email' => normalizar_email(post_str('email')),
@@ -107,6 +113,7 @@ final class AdminController extends Controller {
         }
 
         $edit = get_str('edit') !== '' ? $dao->buscarPorId((int)get_str('edit')) : null;
+        $ver = get_str('ver') !== '' ? $dao->resumo((int)get_str('ver')) : null;
         $filtroTipo = enum_val(get_str('tipo'), UsuarioDAO::TIPOS, '');
         $busca = get_str('q');
         $usuarios = $dao->listar($filtroTipo ?: null, $busca);
@@ -126,6 +133,12 @@ final class AdminController extends Controller {
             if (post_str('acao') === 'excluir') {
                 $ok = $dao->excluir($id);
                 flash($ok ? 'ok' : 'erro', $ok ? 'Categoria excluída. Vagas e cursos que a usavam ficaram sem categoria.' : ($dao->erro ?: 'Categoria não encontrada.'));
+                redirect('admin/pages/categorias.php');
+            }
+            if (in_array(post_str('acao'), ['ativar', 'desativar'], true)) {
+                $ativar = post_str('acao') === 'ativar';
+                $ok = $dao->alterarAtivo($id, $ativar);
+                flash($ok ? 'ok' : 'erro', $ok ? ($ativar ? 'Categoria ativada.' : 'Categoria desativada: some dos filtros, mas os itens continuam com ela.') : 'Categoria não encontrada.');
                 redirect('admin/pages/categorias.php');
             }
             $d = ['nome' => mb_substr(post_str('nome'), 0, 100), 'tipo' => enum_val(post_str('tipo'), CategoriaDAO::TIPOS, 'vaga'), 'ativo' => post_int('ativo', 1) ? 1 : 0];
@@ -162,7 +175,13 @@ final class AdminController extends Controller {
             if ($acao === 'excluir') {
                 $ok = $dao->excluir($id);
                 flash($ok ? 'ok' : 'erro', $ok ? 'Conteúdo excluído.' : 'Conteúdo não encontrado.');
-                redirect('admin/pages/cursos.php');
+                redirect('admin/pages/cursos.php'.volta_filtros(['tipo', 'q']));
+            }
+
+            if ($acao === 'ativar' || $acao === 'desativar') {
+                $ok = $dao->alterarAtivo($id, $acao === 'ativar');
+                flash($ok ? 'ok' : 'erro', $ok ? ($acao === 'ativar' ? 'Conteúdo publicado: já aparece para os usuários.' : 'Conteúdo ocultado: saiu da área pública.') : 'Conteúdo não encontrado.');
+                redirect('admin/pages/cursos.php'.volta_filtros(['tipo', 'q']));
             }
 
             if ($acao === 'extrair') {
@@ -214,7 +233,13 @@ final class AdminController extends Controller {
 
         $edit = get_str('edit') !== '' ? $dao->buscar((int)get_str('edit')) : null;
         $form ??= $edit ?? ['id' => 0, 'categoria_id' => null, 'titulo' => '', 'descricao' => '', 'tipo' => 'curso', 'modalidade' => 'ead', 'nivel' => 'iniciante', 'duracao' => '', 'gratuito' => 1, 'preco' => null, 'url' => '', 'imagem' => 'assets/img/cursos/curso1.png', 'instituicao' => '', 'ativo' => 1];
-        $lista = $dao->listar(false);
+        // Filtros da lista (formato e busca) — no mesmo padrão da tela de usuários.
+        $filtroTipo = enum_val(get_str('tipo'), CursoDAO::TIPOS, '');
+        $busca = get_str('q');
+        $todos = $dao->listar(false);
+        $porTipo = array_count_values(array_column($todos, 'tipo'));
+        $lista = $dao->listar(false, ['q' => $busca]);
+        if ($filtroTipo !== '') $lista = array_values(array_filter($lista, fn($c) => $c['tipo'] === $filtroTipo));
         $imagens = imagens_da_pasta('assets/img/cursos');
         $title = 'Cursos e e-books';
         $abaAtiva = 'cursos';

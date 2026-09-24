@@ -15,7 +15,7 @@ final class CursoDAO {
         $sql = "SELECT c.*, cat.nome categoria_nome FROM cursos c LEFT JOIN categorias cat ON cat.id=c.categoria_id WHERE 1=1";
         $p = [];
         if ($ativos) $sql .= " AND c.ativo=1";
-        if (($f['q'] ?? '') !== '') { $sql .= " AND (c.titulo LIKE ? OR c.descricao LIKE ? OR c.instituicao LIKE ?)"; array_push($p, ...array_fill(0, 3, '%'.$f['q'].'%')); }
+        if (($f['q'] ?? '') !== '') { $sql .= " AND (c.titulo LIKE ? OR c.descricao LIKE ? OR c.instituicao LIKE ?)"; array_push($p, ...array_fill(0, 3, like($f['q']))); }
         if (!empty($f['categoria_id'])) { $sql .= " AND c.categoria_id=?"; $p[] = (int)$f['categoria_id']; }
         if (($f['gratuito'] ?? '') === '1') $sql .= " AND c.gratuito=1";
         $sql .= " ORDER BY c.created_at DESC, c.id DESC";
@@ -46,6 +46,13 @@ final class CursoDAO {
         } catch (Throwable) {
             return false;
         }
+    }
+
+    /** Publicar (1) ou ocultar (0) com um clique. false = conteúdo não existe. */
+    public function alterarAtivo(int $id, bool $ativo): bool {
+        if (!$this->buscar($id)) return false;
+        Database::getConexao()->prepare("UPDATE cursos SET ativo=? WHERE id=?")->execute([$ativo ? 1 : 0, $id]);
+        return true;
     }
 
     public function excluir(int $id): bool {

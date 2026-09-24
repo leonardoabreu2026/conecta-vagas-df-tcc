@@ -99,6 +99,7 @@ View: layouts/header.php + vagas/lista.php + layouts/footer.php  ──► HTML
 | `Extracao/AplicacaoCurriculo` | Aplica os dados extraídos no perfil (preenche, mantém ou mescla). |
 | `Extracao/ExtracaoVaga` | Texto de um anúncio → campos da vaga. |
 | `Extracao/ExtracaoCurso` | Texto de divulgação → campos do curso. |
+| `Pix` | Código Pix "copia e cola" (BR Code do Banco Central, com CRC16) do QR Code de doação do rodapé. |
 
 ### app/Views — telas
 
@@ -185,13 +186,35 @@ o match é recalculado com todos os candidatos.
 - Aplicação no perfil: campo vazio **recebe** o valor; campo preenchido é **mantido** (a não ser que o candidato
   marque "Substituir"); listas são **mescladas**; o nome da conta só muda se o candidato confirmar no relatório.
 
-**Vagas** (painel → Vagas): cola-se o anúncio (WhatsApp, Instagram, site) e o sistema preenche título,
-salário (ignora VR/VT), cidade, tipo, nível, modelo, requisitos, benefícios e área.
+**Vagas** (painel → Vagas): envia-se o **cartaz** (imagem, lido por OCR com o Tesseract) ou cola-se o anúncio
+(WhatsApp, Instagram, site) e o sistema preenche título, empresa anunciante, salário (ignora VR/VT), cidade, tipo,
+nível, modelo, descrição, requisitos, benefícios, contato, quantidade de vagas e área.
+- A leitura começa ao escolher o arquivo (prévia do cartaz na tela); o cartaz vira a imagem da vaga.
+- **Relatório da extração**, campo a campo, como o do currículo: *lido do anúncio*, *valor padrão* (o anúncio não diz —
+  ex.: nível "Júnior") ou *não encontrado*, com os avisos do que conferir.
+- O texto lido no cartaz fica numa caixa editável: corrige-se o que o OCR leu errado e extrai-se de novo, mantendo o cartaz.
+- A descrição ganha uma frase de abertura montada com o que foi lido ("Grupo Dourado contrata Auxiliar de Cozinha em Águas Claras.").
+- Seções curtas ("Horário:", "Local:") não engolem as linhas seguintes; códigos de vaga "(cód. 1308)", prefixos
+  "Temporário -" e frases "está contratando X" são tratados no título.
+- Para ler imagens: Tesseract instalado (com o idioma português) e a extensão `gd` ligada no `php.ini`.
 
 **Cursos** (painel → Cursos e e-books): cola-se a divulgação e o sistema preenche título, instituição, link,
 carga horária, gratuito/preço, modalidade, nível, formato e categoria.
 
 Nada é gravado sem revisão: a extração de vagas e cursos só preenche o formulário.
+
+### CRUD do painel
+
+| Tela | Criar | Ver | Editar | Ativar / desativar | Excluir | Filtros da lista |
+|---|---|---|---|---|---|---|
+| Vagas | formulário + extração | página pública da vaga | `?edit=` | Ativar · Pausar · Encerrar (reativar respeita o limite do plano) | sim | situação e busca |
+| Cursos e e-books | formulário + extração | página pública do curso | `?edit=` | Publicar · Ocultar | sim | formato e busca |
+| Usuários | formulário | ficha da conta (`?ver=`) | `?edit=` | Ativar · Bloquear (nunca a própria conta nem o último admin) | sim | tipo e busca |
+| Categorias | formulário | vagas/cursos da categoria | `?edit=` | Ativar · Desativar | sim | — |
+| Candidaturas | (pelo candidato) | portfólio e currículo | status + retorno | — | admin | vaga e status |
+
+Toda ação que muda dados é um formulário POST com token CSRF (`painel_acao()`), confere a permissão no servidor e
+volta para a mesma lista filtrada (`volta_filtros()`).
 
 ---
 
@@ -261,6 +284,13 @@ Nada é gravado sem revisão: a extração de vagas e cursos só preenche o form
   aleatório, entregues por `ArquivoController::imagem` (só tipos de imagem). Currículos: só por `download.php`,
   para o dono, o administrador, a empresa que recebeu a candidatura ou empresa Premium (perfil público).
 - Cabeçalhos: `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy`.
+- Empresa bloqueada: as vagas dela saem da área pública e deixam de receber candidaturas.
+- Candidatura cancelada: a empresa perde o acesso ao contato e ao currículo daquele candidato (LGPD).
+- Buscas com `LIKE` tratam `%` e `_` digitados como texto (`like()`); visualização de vaga conta 1 vez por visitante.
+
+**Doação (rodapé)**: com `DOACAO_PIX_CHAVE` preenchida em `config/config.php`, o rodapé mostra o QR Code Pix
+(`Pix::doacao()` monta o código; `assets/js/vendor/qrcode.js`, licença MIT, desenha o QR no navegador, sem internet)
+e o botão "Copiar código Pix". Nenhuma API externa é chamada.
 
 **Recuperação de senha (demonstrativa)**
 - Não há envio de e-mail. O link (válido por 30 minutos, uso único) é gravado em
@@ -290,6 +320,10 @@ usuarios 1──1 perfis 1──N curriculos
 usuarios 1──N assinaturas · tentativas_login · redefinicoes_senha
 categorias 1──N vagas / cursos
 ```
+
+Categorias de vaga do seed: TI, Administração, Marketing, Vendas, RH, Financeiro, Engenharia, Saúde, Educação,
+Alimentação, Serviços Gerais e Limpeza, Logística e Transporte e Atendimento ao Público (as quatro últimas são as que a
+extração de vagas sugere). Uma categoria em uso não troca entre "Vagas" e "Cursos".
 
 Conexão (`app/Core/Database.php`): uma conexão por requisição, erros como exceção, prepared statements reais,
 timeout de 5 s, utf8mb4 e o fuso do MySQL igual ao do PHP (America/Sao_Paulo). Falhas viram

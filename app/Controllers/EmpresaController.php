@@ -45,7 +45,35 @@ final class EmpresaController extends Controller {
             if ($acao === 'excluir') {
                 $ok = $vagaPermitida($id) && $dao->excluir($id);
                 flash($ok ? 'ok' : 'erro', $ok ? 'Vaga excluída (candidaturas e matches dela também).' : 'Vaga não encontrada ou sem permissão.');
-                redirect('admin/pages/vagas.php');
+                redirect('admin/pages/vagas.php'.volta_filtros(['status', 'q']));
+            }
+
+            // Ativar / pausar / encerrar com um clique. Reativar respeita o limite do plano básico.
+            if (in_array($acao, ['ativar', 'pausar', 'encerrar'], true)) {
+                $v = $vagaPermitida($id);
+                if (!$v) negar_acesso('Vaga não encontrada ou sem permissão.');
+                $novo = ['ativar' => 'ativa', 'pausar' => 'pausada', 'encerrar' => 'encerrada'][$acao];
+                $limite = null;
+                if ($novo === 'ativa' && !isAdmin() && !$dao->estaAberta($v)) {
+                    $perm = $assinaturaDao->podePublicarVaga($usuarioId, (int)$v['perfil_empresa_id']);
+                    if (!$perm['permitido']) { flash('erro', $perm['motivo']); redirect('planos.php'); }
+                    if (isset($perm['limite'])) $limite = (int)$perm['limite'];
+                }
+                $res = $dao->alterarStatus($id, $novo, $limite);
+                if ($res === 'limite') { flash('erro', "Sua empresa atingiu o limite de {$limite} vagas ativas do Plano Básico Gratuito. Assine o Plano Empresa Premium para publicar vagas ilimitadas!"); redirect('planos.php'); }
+                if ($res === 'ok') {
+                    $msg = ['ativa' => 'Vaga ativada.', 'pausada' => 'Vaga pausada: saiu da busca, mas continua salva.', 'encerrada' => 'Vaga encerrada.'][$novo];
+                    if ($novo === 'ativa') {
+                        $n = 0;
+                        try { $n = (new MatchService())->recalcularVaga($id); } catch (Throwable) {}
+                        $msg .= " Match calculado com {$n} candidato(s).";
+                        if (!empty($v['data_expiracao']) && $v['data_expiracao'] < date('Y-m-d')) $msg .= ' Atenção: a data "Inscrições até" já passou — edite a vaga e renove a data para ela voltar à busca.';
+                    }
+                    flash('ok', $msg);
+                } else {
+                    flash('erro', 'Não foi possível alterar o status da vaga.');
+                }
+                redirect('admin/pages/vagas.php'.volta_filtros(['status', 'q']));
             }
 
             $existente = $id ? $vagaPermitida($id) : null;
@@ -55,6 +83,9 @@ final class EmpresaController extends Controller {
                 // Extração de vagas: preenche o formulário (sem salvar) com o texto do anúncio ou com
                 // a leitura do CARTAZ enviado como imagem (OCR). O cartaz vira a imagem da vaga.
                 $imagemForm = $existente['imagem'] ?? 'assets/img/vagas/vaga1.jpg';
+                // "Extrair de novo" com o texto do cartaz corrigido: o cartaz lido continua sendo a imagem.
+                $imagemAtual = $this->imagemDoFormulario(mb_substr(post_str('imagem_atual'), 0, 255), $existente);
+                if ($imagemAtual !== '') $imagemForm = $imagemAtual;
                 if ($acao === 'ler_cartaz') {
                     $cartaz = salvar_imagem_enviada('cartaz', 'cartaz', 8 * 1024 * 1024);
                     if (!$cartaz) {
@@ -67,8 +98,13 @@ final class EmpresaController extends Controller {
                     $imagemForm = $cartaz;
                 } else {
                     $extraido = ExtracaoVaga::doTexto(post_str('texto_anuncio'));
+                    if (post_str('texto_anuncio') === '') $extraido['avisos'][] = 'Cole o texto do anúncio antes de extrair.';
                 }
                 $cat = $extraido['categoria'] ? $catDao->buscarPorNome($extraido['categoria'], 'vaga') : null;
+                if ($cat && !(int)$cat['ativo']) $cat = null; // categoria desativada não é aplicada
+                $relatorioVaga = ExtracaoVaga::relatorio($extraido, $cat['nome'] ?? '');
+                // O texto lido fica na caixa "colar texto": corrige-se um erro do OCR e extrai de novo.
+                $textoAnuncio = $acao === 'ler_cartaz' ? (string)($extraido['texto_ocr'] ?? '') : post_str('texto_anuncio');
                 $parecida = $extraido['titulo'] !== '' ? $dao->buscarParecida($extraido['titulo'], $extraido['anunciante'], $extraido['cidade'], $id) : null;
                 $form = $extraido + ['id' => $id, 'categoria_id' => $cat['id'] ?? null, 'perfil_empresa_id' => $existente['perfil_empresa_id'] ?? post_int('perfil_empresa_id'),
                                      'imagem' => $imagemForm, 'status' => $existente['status'] ?? 'ativa', 'destaque' => $existente['destaque'] ?? 0, 'data_expiracao' => $existente['data_expiracao'] ?? null];
@@ -158,11 +194,21 @@ final class EmpresaController extends Controller {
         $edit = get_str('edit') !== '' ? $vagaPermitida((int)get_str('edit')) : null;
         if (get_str('edit') !== '' && !$edit) negar_acesso('Vaga não encontrada ou sem permissão.');
         $parecida ??= null;
+        $relatorioVaga ??= null;
+        $textoAnuncio ??= post_str('texto_anuncio');
         $ocrDisponivel = OcrImagem::disponivel();
         $form ??= $edit ?? ['id' => 0, 'perfil_empresa_id' => 0, 'categoria_id' => null, 'titulo' => '', 'anunciante' => '', 'descricao' => '', 'requisitos' => '', 'beneficios' => '', 'contato' => '', 'tipo_vaga' => 'clt',
             'nivel_experiencia' => 'junior', 'remoto' => 'presencial', 'cidade' => 'Brasília', 'uf' => 'DF', 'salario_minimo' => null, 'salario_maximo' => null,
             'imagem' => 'assets/img/vagas/vaga1.jpg', 'status' => 'ativa', 'destaque' => 0, 'data_expiracao' => null];
-        $lista = isAdmin() ? $dao->listar(false) : ($perfil ? $dao->listarPorEmpresa((int)$perfil['id']) : []);
+        $todas = isAdmin() ? $dao->listar(false) : ($perfil ? $dao->listarPorEmpresa((int)$perfil['id']) : []);
+        // Filtros da lista: situação (aberta, pausada, encerrada, expirada) e busca por título/empresa/cidade.
+        $situacao = fn(array $x) => $x['status'] === 'ativa' && !empty($x['data_expiracao']) && $x['data_expiracao'] < date('Y-m-d') ? 'expirada' : $x['status'];
+        $porSituacao = array_count_values(array_map($situacao, $todas));
+        $filtroStatus = enum_val(get_str('status'), [...VagaDAO::STATUS, 'expirada'], '');
+        $busca = get_str('q');
+        $buscaN = Competencias::normalizar($busca);
+        $lista = array_values(array_filter($todas, fn($x) => ($filtroStatus === '' || $situacao($x) === $filtroStatus)
+            && ($buscaN === '' || str_contains(Competencias::normalizar(($x['titulo'] ?? '').' '.($x['empresa_nome'] ?? '').' '.($x['cidade'] ?? '')), $buscaN))));
         $imagens = imagens_da_pasta('assets/img/vagas');
         $dinheiro = fn($v) => $v !== null && $v !== '' ? number_format((float)$v, 2, ',', '.') : '';
 

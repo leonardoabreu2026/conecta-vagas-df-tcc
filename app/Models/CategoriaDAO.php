@@ -12,7 +12,7 @@ final class CategoriaDAO {
 
     public function listar(?string $tipo = null, bool $apenasAtivas = false): array {
         $sql = "SELECT c.*,
-                  (SELECT COUNT(*) FROM vagas v WHERE v.categoria_id=c.id) + (SELECT COUNT(*) FROM cursos cu WHERE cu.categoria_id=c.id) AS em_uso
+                  IF(c.tipo='vaga', (SELECT COUNT(*) FROM vagas v WHERE v.categoria_id=c.id), (SELECT COUNT(*) FROM cursos cu WHERE cu.categoria_id=c.id)) AS em_uso
                 FROM categorias c WHERE 1=1";
         $p = [];
         if ($tipo) { $sql .= " AND c.tipo=?"; $p[] = $tipo; }
@@ -28,6 +28,14 @@ final class CategoriaDAO {
         try {
             $db = Database::getConexao();
             if ($id) {
+                // Trocar "Vagas" ↔ "Cursos" de uma categoria em uso deixaria vagas numa categoria de curso (ou o contrário).
+                $uso = $db->prepare("SELECT (SELECT COUNT(*) FROM vagas WHERE categoria_id=?) AS vagas, (SELECT COUNT(*) FROM cursos WHERE categoria_id=?) AS cursos");
+                $uso->execute([$id, $id]);
+                $u = $uso->fetch();
+                if (($d['tipo'] === 'curso' && (int)$u['vagas'] > 0) || ($d['tipo'] === 'vaga' && (int)$u['cursos'] > 0)) {
+                    $this->erro = 'Esta categoria está em uso: não é possível trocar entre "Vagas" e "Cursos". Crie uma categoria nova para o outro tipo.';
+                    return false;
+                }
                 $db->prepare("UPDATE categorias SET nome=?,tipo=?,ativo=? WHERE id=?")->execute([$d['nome'], $d['tipo'], (int)$d['ativo'], $id]);
                 return $id;
             }
@@ -49,6 +57,13 @@ final class CategoriaDAO {
         $s = Database::getConexao()->prepare("SELECT * FROM categorias WHERE nome=? AND tipo=?");
         $s->execute([$nome, $tipo]);
         return $s->fetch() ?: null;
+    }
+
+    /** Ativar (1) ou desativar (0) com um clique. false = categoria não existe. */
+    public function alterarAtivo(int $id, bool $ativo): bool {
+        if (!$this->buscar($id)) return false;
+        Database::getConexao()->prepare("UPDATE categorias SET ativo=? WHERE id=?")->execute([$ativo ? 1 : 0, $id]);
+        return true;
     }
 
     /** Exclui a categoria; vagas/cursos que a usavam ficam sem categoria (FK ON DELETE SET NULL). */

@@ -247,6 +247,19 @@ function painel_match(mixed $pontuacao, ?string $nivel): string {
 }
 
 /**
+ * Botão de ação de uma linha da tabela (ativar, pausar, excluir...): um mini formulário POST com o
+ * token CSRF — ações que mudam dados nunca são links GET. $filtros volta a lista filtrada (campos f_*).
+ * $classe: '' (principal), 'btn-outline' ou 'btn-danger'; $confirmar abre a confirmação do app.js.
+ */
+function painel_acao(string $acao, int $id, string $texto, string $classe = 'btn-outline', string $confirmar = '', array $filtros = [], array $extras = []): string {
+    $h = '<form method="post"><input type="hidden" name="csrf" value="'.e(csrf_token()).'">'
+       .'<input type="hidden" name="acao" value="'.e($acao).'"><input type="hidden" name="id" value="'.$id.'">';
+    foreach ($filtros as $k => $v) if ((string)$v !== '') $h .= '<input type="hidden" name="f_'.e($k).'" value="'.e($v).'">';
+    foreach ($extras as $k => $v) $h .= '<input type="hidden" name="'.e($k).'" value="'.e($v).'">';
+    return $h.'<button class="btn btn-sm '.e($classe).'"'.($confirmar !== '' ? ' data-confirm="'.e($confirmar).'"' : '').'>'.e($texto).'</button></form>';
+}
+
+/**
  * Cabeçalho das telas do painel: área (administrador/empresa), título, descrição e ações à direita.
  * $acoes é HTML montado pela própria view (botões e selos).
  */

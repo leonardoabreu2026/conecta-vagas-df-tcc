@@ -21,7 +21,7 @@ $chips = pt_chips_vaga($vaga);
     <?php endforeach; ?>
   </nav>
 
-  <?php if (!$aberta): ?><div class="alert erro an-aviso">Vaga <?=e(mb_strtolower(rotulo($vaga['status'])))?> — visível só para a empresa e o administrador.</div><?php endif; ?>
+  <?php if (!$aberta): $motivoFechada = $vaga['status'] !== 'ativa' ? 'Vaga '.mb_strtolower(rotulo($vaga['status'])) : (!(int)($vaga['empresa_ativa'] ?? 1) ? 'Conta da empresa bloqueada' : 'Vaga com o prazo de inscrição vencido'); ?><div class="alert erro an-aviso"><?=e($motivoFechada)?> — visível só para a empresa e o administrador.</div><?php endif; ?>
 
   <div class="an-det">
     <div class="an-det-lado">
@@ -131,6 +131,7 @@ $chips = pt_chips_vaga($vaga);
         <p class="an-caixa-salario<?=$salario === 'A combinar' ? ' an-combinar' : ''?>"><small>Salário</small><b><?=e($salario)?></b></p>
         <dl class="an-ficha">
           <div><dt>Empresa</dt><dd><?=e($empresa)?></dd></div>
+          <?php if (!empty($vaga['anunciante']) && ($vaga['publicado_por'] ?? '') !== '' && $vaga['publicado_por'] !== $empresa): ?><div><dt>Publicado por</dt><dd><?=e($vaga['publicado_por'])?></dd></div><?php endif; ?>
           <div><dt>Local</dt><dd><?=e(pt_local($vaga))?></dd></div>
           <div><dt>Contratação</dt><dd><?=e(rotulo($vaga['tipo_vaga']))?></dd></div>
           <div><dt>Nível</dt><dd><?=e(rotulo($vaga['nivel_experiencia']))?></dd></div>

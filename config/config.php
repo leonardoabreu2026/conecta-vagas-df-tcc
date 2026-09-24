@@ -55,6 +55,16 @@ define('UPLOAD_DIR', ROOT_DIR.DIRECTORY_SEPARATOR.'storage'.DIRECTORY_SEPARATOR.
 define('LOG_DIR', ROOT_DIR.DIRECTORY_SEPARATOR.'storage'.DIRECTORY_SEPARATOR.'logs'.DIRECTORY_SEPARATOR);
 
 // ------------------------------------------------------------
+// Doação (QR Code Pix do rodapé)
+// ------------------------------------------------------------
+// Coloque aqui a chave Pix que recebe as doações (CPF, CNPJ, e-mail, celular no formato
+// +5561999999999 ou chave aleatória). Vazia = o bloco de doação não aparece para os visitantes
+// (o administrador vê um aviso para configurar). Nome até 25 e cidade até 15 letras, sem acento.
+define('DOACAO_PIX_CHAVE', getenv('DOACAO_PIX_CHAVE') ?: '');
+define('DOACAO_NOME', getenv('DOACAO_NOME') ?: 'Conecta Vagas DF');
+define('DOACAO_CIDADE', getenv('DOACAO_CIDADE') ?: 'Brasilia');
+
+// ------------------------------------------------------------
 // Limites
 // ------------------------------------------------------------
 define('MAX_FILE_SIZE', 10 * 1024 * 1024);  // currículo: até 10 MB

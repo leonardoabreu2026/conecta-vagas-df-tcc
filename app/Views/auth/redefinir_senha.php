@@ -14,8 +14,8 @@
     <form method="post" action="<?=url('redefinir_senha.php')?>">
         <input type="hidden" name="csrf" value="<?=e(csrf_token())?>">
         <input type="hidden" name="token" value="<?=e($token)?>">
-        <label>Nova senha</label><input type="password" name="senha" minlength="6" maxlength="72" required autocomplete="new-password">
-        <label>Confirme a nova senha</label><input type="password" name="senha_confirmacao" minlength="6" maxlength="72" required autocomplete="new-password">
+        <label for="nova-senha">Nova senha</label><input id="nova-senha" type="password" name="senha" minlength="6" maxlength="72" required autocomplete="new-password">
+        <label for="nova-senha2">Confirme a nova senha</label><input id="nova-senha2" type="password" name="senha_confirmacao" minlength="6" maxlength="72" required autocomplete="new-password">
         <div class="form-actions"><button class="btn">Salvar nova senha</button></div>
     </form>
 <?php endif; ?>

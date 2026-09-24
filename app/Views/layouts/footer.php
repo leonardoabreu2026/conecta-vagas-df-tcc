@@ -1,12 +1,38 @@
 <?php
 /**
- * Rodapé do layout: links de navegação, conta, links úteis e contato.
+ * Rodapé do layout: apoio ao projeto (QR Code Pix), links de navegação, conta, links úteis e contato.
  * Incluído por View::render() depois de cada tela. Usa $portfolioLiberado (calculado no cabeçalho).
  */
+$pixDoacao = Pix::doacao();
 ?>
 </main>
 
 <footer class="cv-rodape">
+  <?php if ($pixDoacao !== ''): ?>
+  <section class="cv-doacao" id="apoie" aria-labelledby="doacao-titulo">
+    <div class="cv-wrap cv-doacao-grade">
+      <div class="cv-doacao-texto">
+        <h2 id="doacao-titulo"><?=icone('coracao', 22)?>Apoie o Conecta Vagas DF</h2>
+        <p>Gostou do nosso trabalho? Gostou do nosso site? Quer ajudar o nosso projeto a continuar conectando pessoas às oportunidades do DF?
+           <strong>Faça uma doação de qualquer valor pelo QR Code Pix.</strong> Toda ajuda mantém o site no ar, gratuito para quem procura emprego.</p>
+        <ol class="cv-doacao-passos">
+          <li>Abra o app do seu banco e escolha <b>Pix › Ler QR Code</b>.</li>
+          <li>Aponte a câmera para o código ao lado (ou use o "copia e cola").</li>
+          <li>Digite o valor que quiser e confirme. Obrigado!</li>
+        </ol>
+        <button type="button" class="cv-btn cv-btn-verde cv-doacao-copiar" data-copiar="<?=e($pixDoacao)?>" data-copiado="Código Pix copiado!"><?=icone('copiar', 16)?><span>Copiar código Pix</span></button>
+      </div>
+      <figure class="cv-doacao-qr">
+        <div class="cv-doacao-codigo" data-qrcode="<?=e($pixDoacao)?>" role="img" aria-label="QR Code Pix para doação ao Conecta Vagas DF">
+          <noscript><p class="small">Ative o JavaScript para ver o QR Code ou use o botão "Copiar código Pix".</p></noscript>
+        </div>
+        <figcaption>Pix para <?=e(DOACAO_NOME)?> · valor livre</figcaption>
+      </figure>
+    </div>
+  </section>
+  <?php elseif (isAdmin()): ?>
+  <div class="cv-wrap cv-doacao-config" role="note">QR Code de doação desativado: informe a chave Pix em <code>DOACAO_PIX_CHAVE</code> (config/config.php) para ele aparecer aqui no rodapé. Só administradores veem este aviso.</div>
+  <?php endif; ?>
   <div class="cv-wrap cv-rodape-grade">
     <div>
       <h2>Conecta Vagas DF</h2>
@@ -27,6 +53,7 @@
         <li><a href="<?=url('cursos.php')?>">Cursos gratuitos</a></li>
         <li><a href="<?=url('cursos.php?tipo=ebook')?>">E-books</a></li>
         <li><a href="<?=url('planos.php')?>">Planos e assinaturas</a></li>
+        <?php if ($pixDoacao !== ''): ?><li><a href="#apoie">Apoie o projeto (Pix)</a></li><?php endif; ?>
       </ul>
     </div>
     <div>
@@ -83,6 +110,7 @@
   <a class="cv-topo-btn" href="#conteudo" aria-label="Voltar ao topo"><?=icone('topo', 20)?></a>
 </footer>
 
-<script src="<?=url('assets/js/app.js')?>?v=3"></script>
+<?php if ($pixDoacao !== ''): ?><script src="<?=url('assets/js/vendor/qrcode.js')?>?v=1.4.4"></script><?php endif; ?>
+<script src="<?=url('assets/js/app.js')?>?v=4"></script>
 </body>
 </html>

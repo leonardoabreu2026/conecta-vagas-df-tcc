@@ -43,10 +43,10 @@ $ptDescricao = $descricaoPagina ?? 'Vagas de emprego, cursos e e-books gratuitos
 <?php if (!empty($ogImagem)): ?><meta property="og:image" content="<?=e(url((string)$ogImagem))?>"><?php endif; ?>
 <meta name="theme-color" content="#0b3a8f">
 <link rel="stylesheet" href="<?=url('assets/css/app.css')?>?v=5">
-<link rel="stylesheet" href="<?=url('assets/css/site.css')?>?v=5">
+<link rel="stylesheet" href="<?=url('assets/css/site.css')?>?v=6">
 <link rel="stylesheet" href="<?=url('assets/css/portfolio.css')?>?v=3">
 <link rel="stylesheet" href="<?=url('assets/css/anuncios.css')?>?v=1">
-<link rel="stylesheet" href="<?=url('assets/css/painel.css')?>?v=1">
+<link rel="stylesheet" href="<?=url('assets/css/painel.css')?>?v=2">
 </head><body class="cv">
 <a class="cv-pular" href="#conteudo">Pular para o conteúdo</a>
 <header class="cv-topo">
@@ -76,4 +76,4 @@ $ptDescricao = $descricaoPagina ?? 'Vagas de emprego, cursos e e-books gratuitos
  </div>
 </header>
 <main id="conteudo" class="<?=$layoutLargo ? 'cv-main' : 'container'?>">
-<?php if ($flash): ?><div class="<?=$layoutLargo ? 'cv-wrap cv-flash' : ''?>"><div class="alert <?=e($flash['type'])?>" role="status"><?=e($flash['message'])?></div></div><?php endif; ?>
+<?php if ($flash): ?><div class="<?=$layoutLargo ? 'cv-wrap cv-flash' : ''?>"><div class="alert <?=e($flash['type'])?>" role="status" data-flash><?=e($flash['message'])?></div></div><?php endif; ?>

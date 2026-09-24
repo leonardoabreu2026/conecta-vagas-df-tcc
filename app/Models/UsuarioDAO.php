@@ -88,14 +88,45 @@ final class UsuarioDAO {
         return (bool)$s->fetchColumn();
     }
 
+    /** Lista as contas; perfil_id serve para o link "Ver portfólio" dos candidatos. */
     public function listar(?string $tipo = null, string $q = ''): array {
-        $sql = "SELECT * FROM usuarios WHERE 1=1"; $p = [];
-        if ($tipo && in_array($tipo, self::TIPOS, true)) { $sql .= " AND tipo=?"; $p[] = $tipo; }
-        if ($q !== '') { $sql .= " AND (nome LIKE ? OR email LIKE ?)"; $p[] = '%'.$q.'%'; $p[] = '%'.$q.'%'; }
-        $sql .= " ORDER BY created_at DESC, id DESC";
+        $sql = "SELECT u.*, p.id AS perfil_id FROM usuarios u LEFT JOIN perfis p ON p.usuario_id=u.id WHERE 1=1"; $p = [];
+        if ($tipo && in_array($tipo, self::TIPOS, true)) { $sql .= " AND u.tipo=?"; $p[] = $tipo; }
+        if ($q !== '') { $sql .= " AND (u.nome LIKE ? OR u.email LIKE ?)"; $p[] = like($q); $p[] = like($q); }
+        $sql .= " ORDER BY u.created_at DESC, u.id DESC";
         $s = Database::getConexao()->prepare($sql);
         $s->execute($p);
         return $s->fetchAll();
+    }
+
+    /**
+     * Ficha da conta para o "Ver" do painel: dados do usuário + perfil + números do que ela tem.
+     * null = usuário não existe.
+     */
+    public function resumo(int $id): ?array {
+        $s = Database::getConexao()->prepare(
+            "SELECT u.id, u.nome, u.email, u.tipo, u.telefone, u.ativo, u.ultimo_acesso, u.created_at,
+                    p.id AS perfil_id, p.nome_fantasia, p.titulo_profissional, p.cidade, p.uf, p.setor, p.publico,
+                    (SELECT COUNT(*) FROM vagas v WHERE v.perfil_empresa_id = p.id) AS total_vagas,
+                    (SELECT COUNT(*) FROM candidaturas c WHERE c.perfil_candidato_id = p.id) AS total_candidaturas,
+                    (SELECT COUNT(*) FROM curriculos cv WHERE cv.perfil_id = p.id) AS total_curriculos,
+                    (SELECT a.plano FROM assinaturas a WHERE a.usuario_id = u.id AND a.status = 'ativa' AND a.data_fim >= CURDATE() ORDER BY a.id DESC LIMIT 1) AS plano_ativo
+             FROM usuarios u LEFT JOIN perfis p ON p.usuario_id = u.id WHERE u.id = ?");
+        $s->execute([$id]);
+        return $s->fetch() ?: null;
+    }
+
+    /**
+     * Ativar/bloquear com um clique, com as mesmas travas do formulário: nunca o próprio
+     * administrador e nunca o último administrador ativo. '' = ok; senão, a mensagem de erro.
+     */
+    public function alterarAtivo(int $id, bool $ativo, int $meuId): string {
+        $alvo = $this->buscarPorId($id);
+        if (!$alvo) return 'Usuário não encontrado.';
+        if ($id === $meuId && !$ativo) return 'Você não pode bloquear a própria conta.';
+        if (!$ativo && $alvo['tipo'] === 'admin' && (int)$alvo['ativo'] && $this->contarAdminsAtivos() <= 1) return 'É preciso manter pelo menos um administrador ativo.';
+        Database::getConexao()->prepare("UPDATE usuarios SET ativo=? WHERE id=?")->execute([$ativo ? 1 : 0, $id]);
+        return '';
     }
 
     public function contarAdminsAtivos(): int {

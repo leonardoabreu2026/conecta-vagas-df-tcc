@@ -18,9 +18,11 @@ final class VagaController extends Controller {
         $vagas = []; $todas = []; $categorias = []; $dbErro = null;
         try {
             $dao = new VagaDAO();
-            $vagas = $dao->listar(true, $filtros);
-            $todas = $dao->listar(true);
             $categorias = (new CategoriaDAO())->listar('vaga', true);
+            // Só áreas de vaga ativas valem como filtro (um id de categoria de curso não filtra nada).
+            if ($filtros['categoria_id'] && !in_array($filtros['categoria_id'], array_map(fn($c) => (int)$c['id'], $categorias), true)) $filtros['categoria_id'] = 0;
+            $todas = $dao->listar(true);
+            $vagas = array_filter(array_values($filtros)) ? $dao->listar(true, $filtros) : $todas; // sem filtro: reaproveita a mesma consulta
         } catch (Throwable $e) { $dbErro = mensagem_erro_banco($e); }
 
         // Candidato logado: % de match e candidaturas já enviadas.
@@ -83,7 +85,12 @@ final class VagaController extends Controller {
             $this->view('vagas/nao_encontrada', get_defined_vars());
             return;
         }
-        if ($aberta && !$ehDona) { $dao->incrementarVisualizacao($id); $vaga['visualizacoes'] = (int)$vaga['visualizacoes'] + 1; }
+        // Uma visualização por visitante (sessão), para o F5 não inflar o "Desempenho" da empresa.
+        if ($aberta && !$ehDona && empty($_SESSION['vagas_vistas'][$id])) {
+            $dao->incrementarVisualizacao($id);
+            $vaga['visualizacoes'] = (int)$vaga['visualizacoes'] + 1;
+            $_SESSION['vagas_vistas'][$id] = 1;
+        }
 
         $competencias = Competencias::daVaga($vaga);
         $match = null; $candidatura = null; $recom = [];

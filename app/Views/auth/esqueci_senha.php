@@ -17,7 +17,7 @@
     <p class="muted">Informe o e-mail da sua conta para gerar um link de redefinição.</p>
     <form method="post" action="<?=url('esqueci_senha.php')?>">
         <input type="hidden" name="csrf" value="<?=e(csrf_token())?>">
-        <label>E-mail</label><input type="email" name="email" required maxlength="255" autocomplete="email">
+        <label for="esq-email">E-mail</label><input id="esq-email" type="email" name="email" required maxlength="255" autocomplete="email">
         <div class="form-actions"><button class="btn">Gerar link de redefinição</button><a class="btn btn-outline" href="<?=url('login.php')?>">Voltar</a></div>
     </form>
 <?php endif; ?>

@@ -29,7 +29,7 @@ final class MatchDAO {
                 FROM matches m
                 JOIN vagas v ON v.id=m.vaga_id AND v.status='ativa' AND (v.data_expiracao IS NULL OR v.data_expiracao>=CURDATE())
                 JOIN perfis p ON p.id=v.perfil_empresa_id
-                JOIN usuarios u ON u.id=p.usuario_id
+                JOIN usuarios u ON u.id=p.usuario_id AND u.ativo=1
                 WHERE m.perfil_candidato_id=?
                 ORDER BY m.pontuacao DESC, v.destaque DESC, v.created_at DESC";
         $s = Database::getConexao()->prepare($sql);

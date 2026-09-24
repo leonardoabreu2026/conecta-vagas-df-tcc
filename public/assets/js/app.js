@@ -1,20 +1,37 @@
 document.addEventListener('DOMContentLoaded',()=>{
   // Confirmação em ações destrutivas (painel).
   document.querySelectorAll('[data-confirm]').forEach(e=>e.addEventListener('click',ev=>{if(!confirm(e.dataset.confirm))ev.preventDefault()}));
-  setTimeout(()=>document.querySelectorAll('.alert').forEach(a=>a.style.opacity='.75'),5000);
+  // Só a mensagem "flash" (resultado da última ação) esmaece; avisos permanentes da tela continuam fortes.
+  setTimeout(()=>document.querySelectorAll('[data-flash]').forEach(a=>a.style.opacity='.75'),5000);
 
-  // Portal: botão "Copiar link" das matérias/reportagens.
+  // Botões "Copiar" (link das matérias, código Pix da doação). data-copiado = texto de confirmação.
   document.querySelectorAll('[data-copiar]').forEach(btn=>btn.addEventListener('click',async()=>{
-    const link=btn.dataset.copiar, rotulo=btn.querySelector('span');
+    const link=btn.dataset.copiar, rotulo=btn.querySelector('span'), original=rotulo?rotulo.textContent:'';
     let ok=false;
     try{ if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(link);ok=true;} }catch(e){}
     if(!ok){ // Fallback para http://localhost sem clipboard API
       const t=document.createElement('textarea');t.value=link;t.setAttribute('readonly','');t.style.position='fixed';t.style.opacity='0';
       document.body.appendChild(t);t.select();try{ok=document.execCommand('copy');}catch(e){}t.remove();
     }
-    if(!ok){window.prompt('Copie o link:',link);return;}
-    btn.classList.add('copiado'); if(rotulo) rotulo.textContent='Link copiado!';
-    setTimeout(()=>{btn.classList.remove('copiado'); if(rotulo) rotulo.textContent='Copiar link';},2500);
+    if(!ok){window.prompt('Copie:',link);return;}
+    btn.classList.add('copiado'); if(rotulo) rotulo.textContent=btn.dataset.copiado||'Link copiado!';
+    setTimeout(()=>{btn.classList.remove('copiado'); if(rotulo) rotulo.textContent=original;},2500);
+  }));
+
+  // QR Code Pix de doação (rodapé): desenhado em SVG a partir do código "copia e cola".
+  document.querySelectorAll('[data-qrcode]').forEach(el=>{
+    if(typeof qrcode!=='function') return;
+    try{ const q=qrcode(0,'M'); q.addData(el.dataset.qrcode); q.make(); el.innerHTML=q.createSvgTag({cellSize:4,margin:8,scalable:true}); }catch(e){}
+  });
+
+  // Máquina de extração: ao escolher o cartaz, mostra a prévia e já envia para leitura (sem clique extra).
+  document.querySelectorAll('[data-auto-envio]').forEach(inp=>inp.addEventListener('change',()=>{
+    const f=inp.files&&inp.files[0], form=inp.form; if(!f||!form) return;
+    const prev=form.querySelector('[data-previa]');
+    if(prev&&f.type.startsWith('image/')){ prev.src=URL.createObjectURL(f); prev.hidden=false; }
+    const aviso=form.querySelector('[data-lendo]'); if(aviso) aviso.hidden=false;
+    const btn=form.querySelector('button'); if(btn){ btn.disabled=true; btn.textContent='Lendo o cartaz…'; }
+    form.submit();
   }));
 
   // Carrossel de fotos do topo da página inicial.

@@ -33,6 +33,14 @@ function redirect(string $path): never { header('Location: '.url($path)); exit; 
 function post_str(string $key, string $default=''): string { $v=$_POST[$key]??$default; return is_scalar($v) ? trim((string)$v) : $default; }
 function post_int(string $key, int $default=0): int { $v=$_POST[$key]??$default; return is_numeric($v) ? (int)$v : $default; }
 function get_str(string $key, string $default=''): string { $v=$_GET[$key]??$default; return is_scalar($v) ? trim((string)$v) : $default; }
+/** Termo de busca para LIKE: "%termo%" com % e _ digitados tratados como texto (não como curinga). */
+function like(string $termo): string { return '%'.addcslashes($termo, '%_\\').'%'; }
+/** "?tipo=ebook&q=excel": filtros da lista que o formulário da ação reenviou (campos f_tipo, f_q), para voltar à mesma lista. */
+function volta_filtros(array $chaves): string {
+    $q = [];
+    foreach ($chaves as $k) { $v = mb_substr(post_str('f_'.$k), 0, 100); if ($v !== '') $q[$k] = $v; }
+    return $q ? '?'.http_build_query($q) : '';
+}
 
 /** Valor digitado anteriormente (para repreencher o formulário depois de um erro), já escapado. */
 function old(string $key,string $default=''): string { $v=$_POST[$key]??$default; return e(is_scalar($v) ? (string)$v : $default); }

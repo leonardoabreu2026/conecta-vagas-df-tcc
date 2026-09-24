@@ -15,7 +15,7 @@ $abas['vagas'] = ['admin/pages/vagas.php', 'Vagas', 'maleta'];
 $abas['candidaturas'] = ['admin/pages/candidaturas.php', 'Candidaturas', 'formulario'];
 $abas['talentos'] = ['admin/pages/talentos.php', 'Banco de talentos', 'busca'];
 if (isEmpresa()) $abas['empresa'] = ['admin/pages/empresa_perfil.php', 'Perfil da empresa', 'perfil'];
-$abas['planos'] = ['planos.php', 'Planos', 'planos'];
+if (isEmpresa()) $abas['planos'] = ['planos.php', 'Planos', 'planos']; // o administrador não assina planos
 ?>
 <nav class="pn-abas" aria-label="Seções do painel">
   <?php foreach ($abas as $k => [$link, $rotulo, $ic]): $ativa = ($abaAtiva ?? '') === $k; ?>

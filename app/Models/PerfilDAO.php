@@ -97,11 +97,11 @@ final class PerfilDAO {
         $params = [];
         if ($termo !== '') {
             $sql .= " AND (u.nome LIKE ? OR p.titulo_profissional LIKE ? OR p.habilidades LIKE ? OR p.competencias LIKE ? OR p.experiencias LIKE ? OR p.cursos_complementares LIKE ? OR p.links LIKE ?)";
-            array_push($params, ...array_fill(0, 7, '%'.$termo.'%'));
+            array_push($params, ...array_fill(0, 7, like($termo)));
         }
         if ($cidade !== '') {
             $sql .= " AND p.cidade LIKE ?";
-            $params[] = '%'.$cidade.'%';
+            $params[] = like($cidade);
         }
         $sql .= " ORDER BY is_vip DESC, p.id DESC";
         $s = Database::getConexao()->prepare($sql);

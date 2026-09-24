@@ -1,23 +1,60 @@
 <?php
 /**
  * CRUD de usuários (rota admin/pages/usuarios.php) — só administrador.
- * Recebe de AdminController::usuarios(): $usuarios, $edit, $filtroTipo, $busca e $meuId.
+ * Recebe de AdminController::usuarios(): $usuarios, $edit, $ver (ficha da conta), $filtroTipo, $busca e $meuId.
  */
+$filtrosLista = ['tipo' => $filtroTipo, 'q' => $busca];
 ?>
 <div class="pn">
 <?php require __DIR__.'/../layouts/admin_nav.php'; ?>
-<?=painel_cabecalho('Usuários', 'Cadastre, edite e bloqueie contas. Você não pode excluir nem rebaixar a própria conta, e o sistema mantém pelo menos um administrador ativo.')?>
+<?=painel_cabecalho('Usuários', 'Cadastre, veja, edite, bloqueie e exclua contas. Você não pode excluir nem rebaixar a própria conta, e o sistema mantém pelo menos um administrador ativo.')?>
+
+<?php if ($ver): ?>
+<section class="form pn-ficha" aria-labelledby="ficha-titulo">
+    <div class="pn-ficha-topo">
+        <div>
+            <h2 id="ficha-titulo"><?=e($ver['nome'])?> <small class="meta">#<?=(int)$ver['id']?></small></h2>
+            <p class="meta"><?=e($ver['email'])?><?=$ver['telefone'] ? ' · '.e($ver['telefone']) : ''?></p>
+        </div>
+        <div class="actions">
+            <?=painel_status((string)$ver['tipo'])?> <?=$ver['ativo'] ? painel_status('ativo', 'Ativo') : painel_status('bloqueado', 'Bloqueado')?>
+            <?php if ($ver['plano_ativo']): ?><?=painel_status('publicado', $ver['plano_ativo'] === 'assinante' ? 'Candidato VIP' : 'Empresa Premium')?><?php endif; ?>
+        </div>
+    </div>
+    <dl class="pn-ficha-dados">
+        <?php if ($ver['tipo'] === 'empresa'): ?>
+            <div><dt>Nome fantasia</dt><dd><?=e($ver['nome_fantasia'] ?: '—')?></dd></div>
+            <div><dt>Setor</dt><dd><?=e($ver['setor'] ?: '—')?></dd></div>
+            <div><dt>Vagas publicadas</dt><dd><?=(int)$ver['total_vagas']?></dd></div>
+        <?php elseif ($ver['tipo'] === 'candidato'): ?>
+            <div><dt>Título profissional</dt><dd><?=e($ver['titulo_profissional'] ?: '—')?></dd></div>
+            <div><dt>Candidaturas</dt><dd><?=(int)$ver['total_candidaturas']?></dd></div>
+            <div><dt>Currículos enviados</dt><dd><?=(int)$ver['total_curriculos']?></dd></div>
+            <div><dt>Perfil público</dt><dd><?=$ver['publico'] ? 'Sim' : 'Não'?></dd></div>
+        <?php endif; ?>
+        <?php if ($ver['tipo'] !== 'admin'): ?><div><dt>Cidade</dt><dd><?=e(trim(($ver['cidade'] ?? '').($ver['uf'] ? '/'.$ver['uf'] : ''), '/') ?: '—')?></dd></div><?php endif; ?>
+        <div><dt>Conta criada em</dt><dd><?=date('d/m/Y', strtotime((string)$ver['created_at']))?></dd></div>
+        <div><dt>Último acesso</dt><dd><?=$ver['ultimo_acesso'] ? date('d/m/Y H:i', strtotime((string)$ver['ultimo_acesso'])) : 'Nunca entrou'?></dd></div>
+    </dl>
+    <div class="form-actions">
+        <a class="btn btn-sm btn-outline" href="?edit=<?=(int)$ver['id']?>#form-usuario">Editar</a>
+        <?php if ($ver['tipo'] === 'candidato' && $ver['perfil_id']): ?><a class="btn btn-sm btn-outline" href="<?=url('view/perfil/portfolio.php?id='.(int)$ver['perfil_id'])?>" target="_blank" rel="noopener">Ver portfólio<span class="sr-only"> (abre em nova aba)</span></a><?php endif; ?>
+        <a class="btn btn-sm btn-outline" href="<?=url('admin/pages/usuarios.php')?>">Fechar</a>
+    </div>
+</section>
+<?php endif; ?>
+
 <div class="form">
-    <h3><?= $edit ? 'Editar usuário #'.(int)$edit['id'] : 'Novo usuário' ?></h3>
+    <h2 class="pn-form-titulo" id="form-usuario"><?= $edit ? 'Editar usuário #'.(int)$edit['id'] : 'Novo usuário' ?></h2>
     <form method="post">
         <input type="hidden" name="csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="acao" value="salvar"><input type="hidden" name="id" value="<?=(int)($edit['id'] ?? 0)?>">
         <div class="form-grid">
-            <div><label>Nome</label><input name="nome" required maxlength="255" value="<?=e($edit['nome'] ?? '')?>"></div>
-            <div><label>E-mail</label><input type="email" name="email" required maxlength="255" value="<?=e($edit['email'] ?? '')?>"></div>
-            <div><label>Tipo</label><select name="tipo"><?php foreach (UsuarioDAO::TIPOS as $t): ?><option value="<?=$t?>" <?=($edit['tipo'] ?? 'candidato') === $t ? 'selected' : ''?>><?=e(rotulo($t))?></option><?php endforeach; ?></select></div>
-            <div><label>Telefone</label><input name="telefone" maxlength="30" value="<?=e($edit['telefone'] ?? '')?>"></div>
-            <div><label>Senha <?= $edit ? '<small class="muted">(deixe vazio para manter)</small>' : '' ?></label><input type="password" name="senha" minlength="6" maxlength="72" <?=$edit ? '' : 'required'?> autocomplete="new-password"></div>
-            <div><label>Ativo</label><select name="ativo"><option value="1" <?=(!$edit || (int)$edit['ativo']) ? 'selected' : ''?>>Sim</option><option value="0" <?=$edit && !(int)$edit['ativo'] ? 'selected' : ''?>>Não (bloqueia o login)</option></select></div>
+            <div><label for="u-nome">Nome</label><input id="u-nome" name="nome" required maxlength="255" value="<?=e($edit['nome'] ?? '')?>"></div>
+            <div><label for="u-email">E-mail</label><input id="u-email" type="email" name="email" required maxlength="255" value="<?=e($edit['email'] ?? '')?>"></div>
+            <div><label for="u-tipo">Tipo</label><select id="u-tipo" name="tipo"><?php foreach (UsuarioDAO::TIPOS as $t): ?><option value="<?=$t?>" <?=($edit['tipo'] ?? 'candidato') === $t ? 'selected' : ''?>><?=e(rotulo($t))?></option><?php endforeach; ?></select></div>
+            <div><label for="u-tel">Telefone</label><input id="u-tel" name="telefone" maxlength="30" value="<?=e($edit['telefone'] ?? '')?>"></div>
+            <div><label for="u-senha">Senha <?= $edit ? '<small class="muted">(deixe vazio para manter)</small>' : '' ?></label><input id="u-senha" type="password" name="senha" minlength="6" maxlength="72" <?=$edit ? '' : 'required'?> autocomplete="new-password"></div>
+            <div><label for="u-ativo">Ativo</label><select id="u-ativo" name="ativo"><option value="1" <?=(!$edit || (int)$edit['ativo']) ? 'selected' : ''?>>Sim</option><option value="0" <?=$edit && !(int)$edit['ativo'] ? 'selected' : ''?>>Não (bloqueia o login)</option></select></div>
         </div>
         <div class="form-actions"><button class="btn">Salvar</button><?php if ($edit): ?><a class="btn btn-outline" href="<?=url('admin/pages/usuarios.php')?>">Cancelar</a><?php endif; ?></div>
     </form>
@@ -31,16 +68,18 @@
 <div class="pn-contagem"><h2>Contas</h2><span><?=gf_num(count($usuarios))?> <?=gf_plural(count($usuarios), 'usuário encontrado', 'usuários encontrados')?></span></div>
 <div class="table-wrap"><table class="table">
     <tr><th class="num">ID</th><th>Nome</th><th>E-mail</th><th>Tipo</th><th>Situação</th><th>Último acesso</th><th>Ações</th></tr>
-    <?php foreach ($usuarios as $x): ?>
+    <?php foreach ($usuarios as $x): $eu = (int)$x['id'] === $meuId; ?>
     <tr>
-        <td class="num meta"><?=(int)$x['id']?></td><td><?=e($x['nome'])?><?=(int)$x['id'] === $meuId ? ' <small class="meta">(você)</small>' : ''?></td><td><?=e($x['email'])?></td>
+        <td class="num meta"><?=(int)$x['id']?></td><td><?=e($x['nome'])?><?=$eu ? ' <small class="meta">(você)</small>' : ''?></td><td><?=e($x['email'])?></td>
         <td><?=painel_status((string)$x['tipo'])?></td>
         <td><?=$x['ativo'] ? painel_status('ativo', 'Ativo') : painel_status('bloqueado', 'Bloqueado')?></td>
         <td class="meta"><?=$x['ultimo_acesso'] ? date('d/m/Y H:i', strtotime($x['ultimo_acesso'])) : '—'?></td>
         <td><div class="actions">
-            <a class="btn btn-sm btn-outline" href="?edit=<?=(int)$x['id']?>">Editar</a>
-            <?php if ((int)$x['id'] !== $meuId): ?>
-            <form method="post"><input type="hidden" name="csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="acao" value="excluir"><input type="hidden" name="id" value="<?=(int)$x['id']?>"><button class="btn btn-sm btn-danger" data-confirm="Excluir este usuário e todos os dados dele?">Excluir</button></form>
+            <a class="btn btn-sm" href="?ver=<?=(int)$x['id']?><?=$filtroTipo !== '' ? '&amp;tipo='.e($filtroTipo) : ''?><?=$busca !== '' ? '&amp;q='.e(urlencode($busca)) : ''?>">Ver<span class="sr-only"> <?=e($x['nome'])?></span></a>
+            <a class="btn btn-sm btn-outline" href="?edit=<?=(int)$x['id']?>#form-usuario">Editar</a>
+            <?php if (!$eu): ?>
+                <?=$x['ativo'] ? painel_acao('desativar', (int)$x['id'], 'Bloquear', 'btn-outline', 'Bloquear esta conta? A pessoa perde o acesso na hora.', $filtrosLista) : painel_acao('ativar', (int)$x['id'], 'Ativar', 'btn-outline', '', $filtrosLista)?>
+                <?=painel_acao('excluir', (int)$x['id'], 'Excluir', 'btn-danger', 'Excluir este usuário e todos os dados dele? Esta ação não pode ser desfeita.')?>
             <?php endif; ?>
         </div></td>
     </tr>

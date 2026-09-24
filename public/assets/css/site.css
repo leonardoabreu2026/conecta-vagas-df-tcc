@@ -219,6 +219,28 @@ body.cv .progress{border-radius:3px}
 .cv-rodape a:hover{color:#fff;text-decoration:underline}
 .cv-rodape .cv-btn{color:#fff;text-decoration:none}
 .cv-rodape-nota{font-size:12.5px!important;color:#8e9bb0}
+/* Apoie o projeto: QR Code Pix de doação, no topo do rodapé */
+.cv-doacao{background:linear-gradient(120deg,#0d2a52,#123a6e 55%,#0f4b3a);border-bottom:1px solid #ffffff1a}
+.cv-doacao-grade{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:28px;align-items:center;padding-top:26px;padding-bottom:26px}
+.cv-rodape .cv-doacao h2{display:flex;align-items:center;gap:8px;margin:0 0 8px;font-size:21px;color:#fff}
+.cv-doacao h2 .ic{color:#ff8a8a}
+.cv-rodape .cv-doacao p{max-width:640px;color:#dbe5f2;font-size:15px}
+.cv-doacao p strong{color:#fff}
+.cv-doacao-passos{margin:10px 0 14px;padding-left:20px;color:#c3cedd;font-size:13.5px;line-height:1.6}
+.cv-doacao-passos b{color:#fff}
+.cv-doacao-copiar{display:inline-flex;align-items:center;gap:8px;border:0;cursor:pointer;font:inherit;font-weight:700}
+.cv-doacao-copiar.copiado{background:#1f9d55}
+.cv-doacao-qr{margin:0;text-align:center}
+.cv-doacao-codigo{display:grid;place-items:center;width:188px;height:188px;padding:6px;background:#fff;border-radius:12px;box-shadow:0 8px 24px #0006}
+.cv-doacao-codigo svg{display:block;width:100%;height:100%}
+.cv-doacao-codigo noscript p{color:#1f2d45;margin:0;padding:8px}
+.cv-rodape .cv-doacao figcaption{margin-top:8px;font-size:12.5px;color:#c3cedd}
+.cv-doacao-config{margin:0 auto;padding:10px 16px;background:#3a2a00;color:#ffe08a;font-size:13px;border-bottom:1px solid #ffffff1a}
+.cv-doacao-config code{color:#fff}
+@media (max-width:640px){
+  .cv-doacao-grade{grid-template-columns:1fr;justify-items:center;text-align:left}
+  .cv-doacao-texto{width:100%}
+}
 .cv-rodape-base{border-top:1px solid #ffffff1a;background:#0b1422;font-size:12.5px;color:#8e9bb0}
 .cv-rodape-base .cv-wrap{display:flex;justify-content:space-between;gap:10px;padding-top:12px;padding-bottom:12px}
 .cv-topo-btn{position:absolute;right:24px;top:-22px;width:44px;height:44px;border-radius:50%;background:var(--cv-azul);color:#fff!important;display:grid;place-items:center;box-shadow:0 4px 12px #0005}
@@ -465,3 +487,9 @@ body.cv .cv-faixa h1,body.cv .cv-hero h1,body.cv .profile-head h1,body.cv .pf-ba
 @media(max-width:640px){.cv-relampago{left:16px;right:16px;bottom:16px;width:auto}}
 @media(prefers-reduced-motion:reduce){.cv-relampago{transition:none}.cv-relampago.visivel{animation:none}}
 @media print{.cv-relampago{display:none!important}}
+
+/* ---------- Acessibilidade: contraste (WCAG AA, 4.5:1) e foco visível em qualquer fundo ---------- */
+.badge-vip{background:linear-gradient(135deg,#b45309,#92400e)}
+.score-badge.excelente{background:#15803d}.score-badge.alto{background:#1d4ed8}.score-badge.medio{background:#b45309}.score-badge.baixo{background:#64748b}
+.pf-vazio,.pl-itens li.off{color:#64748b}
+body.cv :is(a,button,summary,[tabindex]):focus-visible{outline:3px solid #0a3a8c;outline-offset:2px;box-shadow:0 0 0 5px #ffbf47}

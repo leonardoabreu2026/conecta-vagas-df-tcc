@@ -96,10 +96,10 @@ final class ExtracaoVaga {
         $texto = trim(str_replace(["\r\n", "\r"], "\n", $texto));
         $r = ['titulo'=>'','descricao'=>'','requisitos'=>'','beneficios'=>'','tipo_vaga'=>'clt','nivel_experiencia'=>'junior','remoto'=>'presencial',
               'cidade'=>'','uf'=>'','salario_minimo'=>null,'salario_maximo'=>null,'categoria'=>'','competencias'=>[],
-              'anunciante'=>'','contato'=>'','quantidade'=>null,'cargos'=>[],'avisos'=>[]];
+              'anunciante'=>'','contato'=>'','quantidade'=>null,'cargos'=>[],'avisos'=>[],'padrao'=>[]];
         $destaques = array_values(array_filter(array_map([self::class, 'limparLinha'], $ocr['destaques'] ?? [])));
         $complemento = array_values(array_filter(array_map([self::class, 'limparLinha'], $ocr['complemento'] ?? [])));
-        if ($texto === '' && !$destaques) return $r;
+        if ($texto === '' && !$destaques) return ['padrao' => ['tipo_vaga', 'nivel_experiencia', 'remoto']] + $r;
 
         $todas = array_values(array_filter(array_map([self::class, 'limparLinha'], explode("\n", $texto))));
         $tudo = $texto."\n".implode("\n", $complemento);
@@ -118,25 +118,32 @@ final class ExtracaoVaga {
         [$r['salario_minimo'], $r['salario_maximo']] = self::salario($tudo);
         $r['quantidade'] = self::quantidade($n);
 
+        // '' = o anúncio não diz; aí entra o valor padrão e o campo é marcado como "padrão" no relatório.
         $r['tipo_vaga'] = match (true) {
             (bool)preg_match('/\b(estagio|estagiario|estagiaria|estagiarios|bolsa auxilio)\b/', $n) => 'estagio',
             (bool)preg_match('/\b(pj|pessoa juridica|prestador de servico|mei)\b/', $n) => 'pj',
             (bool)preg_match('/\b(temporario|temporaria|freelancer|freela|por contrato|dias de contrato|contrato de \d+ dias|acao temporaria)\b/', $n) => 'temporario',
-            default => 'clt',
+            (bool)preg_match('/\b(clt|carteira assinada|registro em carteira|efetivo)\b/', $n) => 'clt',
+            default => '',
         };
         $r['nivel_experiencia'] = match (true) {
             (bool)preg_match('/\b(senior|sr)\b/', $n) => 'senior',
             (bool)preg_match('/\bpleno\b/', $n) => 'pleno',
             (bool)preg_match('/\b(estagio|estagiario|estagiaria|estagiarios|jovem aprendiz|aprendiz)\b/', $n) => 'estagiario',
-            default => 'junior',
+            (bool)preg_match('/\b(junior|jr|primeiro emprego|sem experiencia)\b/', $n) => 'junior',
+            default => '',
         };
         $r['remoto'] = match (true) {
             (bool)preg_match('/\b(hibrido|hibrida)\b/', $n) => 'hibrido',
             (bool)preg_match('/\b(remoto|remota|home office|100 online|teletrabalho)\b/', $n) => 'remoto',
-            default => 'presencial',
+            (bool)preg_match('/\b(presencial|no local)\b/', $n) => 'presencial',
+            default => '',
         };
+        foreach (['tipo_vaga' => 'clt', 'nivel_experiencia' => 'junior', 'remoto' => 'presencial'] as $campo => $padrao) {
+            if ($r[$campo] === '') { $r[$campo] = $padrao; $r['padrao'][] = $campo; }
+        }
         [$r['cidade'], $r['uf']] = self::local($tudo."\n".implode("\n", $destaques), $secoes['local'] ?? []);
-        if ($r['cidade'] === '' && $r['remoto'] !== 'remoto') { $r['cidade'] = 'Brasília'; $r['uf'] = 'DF'; }
+        if ($r['cidade'] === '' && $r['remoto'] !== 'remoto') { $r['cidade'] = 'Brasília'; $r['uf'] = 'DF'; $r['padrao'][] = 'cidade'; }
 
         // Linhas fora de seção: benefícios têm R$/VT/VR; requisitos têm "experiência", "CNH", "curso"...
         $desc = $secoes['descricao'] ?? []; $req = $secoes['requisitos'] ?? []; $ben = $secoes['beneficios'] ?? [];
@@ -151,9 +158,14 @@ final class ExtracaoVaga {
             else $desc[] = $l;
         }
         foreach (['horario' => 'Horário', 'local' => 'Local'] as $extra => $rot) if (!empty($secoes[$extra])) $desc[] = $rot.': '.implode(' ', $secoes[$extra]);
-        if (!isset($secoes['horario']) && preg_match('/\b(\d{1,2})\s*x\s*(\d{1,2})\b/', $n, $m) && in_array($m[1].'x'.$m[2], ['6x1','5x2','12x36','4x2','5x1','6x2'], true)) $desc[] = 'Escala '.$m[1].'x'.$m[2];
+        if (!isset($secoes['horario']) && preg_match('/\b(\d{1,2})\s*x\s*(\d{1,2})\b/', $n, $m) && in_array($m[1].'x'.$m[2], ['6x1','5x2','12x36','4x2','5x1','6x2'], true)
+            && !preg_match('/\b'.$m[1].'\s*x\s*'.$m[2].'\b/', Competencias::normalizar(implode(' ', $desc)))) $desc[] = 'Escala '.$m[1].'x'.$m[2];
         if (count($r['cargos']) >= 2) $desc[] = 'Cargos: '.implode(', ', $r['cargos']).'.';
         if ($r['quantidade']) $desc[] = 'Quantidade de vagas: '.$r['quantidade'];
+        // Frase de abertura montada com o que foi lido ("Grupo Dourado contrata Auxiliar de Cozinha em Águas Claras."),
+        // como nas vagas da curadoria — só quando a descrição ainda não apresenta a vaga.
+        $abertura = self::abertura($r);
+        if ($abertura !== '' && !str_contains(Competencias::normalizar(implode(' ', array_slice($desc, 0, 1))), Competencias::normalizar($r['titulo']))) array_unshift($desc, $abertura);
         $r['descricao'] = self::juntar($desc);
         $r['requisitos'] = self::juntar($req);
         $r['beneficios'] = self::juntar($ben);
@@ -165,6 +177,56 @@ final class ExtracaoVaga {
         if ($r['salario_minimo'] === null) $r['avisos'][] = 'Salário não informado no anúncio (ficará "A combinar").';
         if ($r['anunciante'] === '' && ($ocr['destaques'] ?? null) !== null) $r['avisos'][] = 'Empresa anunciante não identificada: confira no cartaz.';
         return $r;
+    }
+
+    /**
+     * Relatório campo a campo da extração (no mesmo espírito do relatório do currículo):
+     * 'lido' = veio do anúncio; 'padrao' = o anúncio não diz e ficou o valor padrão; 'falta' = não encontrado.
+     * @return array{itens:array<int,array{campo:string,rotulo:string,valor:string,status:string}>,lidos:int,padrao:int,faltando:int}
+     */
+    public static function relatorio(array $r, string $categoriaNome = ''): array {
+        $salario = $r['salario_minimo'] !== null ? salario_texto($r['salario_minimo'], $r['salario_maximo']) : '';
+        $campos = [
+            'titulo' => ['Cargo (título)', $r['titulo']],
+            'anunciante' => ['Empresa anunciante', $r['anunciante']],
+            'salario' => ['Salário', $salario],
+            'cidade' => ['Local', trim($r['cidade'].($r['uf'] !== '' ? '/'.$r['uf'] : ''), '/')],
+            'tipo_vaga' => ['Contratação', rotulo($r['tipo_vaga'])],
+            'nivel_experiencia' => ['Nível', rotulo($r['nivel_experiencia'])],
+            'remoto' => ['Modelo de trabalho', rotulo($r['remoto'])],
+            'categoria' => ['Área (categoria)', $categoriaNome !== '' ? $categoriaNome : $r['categoria']],
+            'descricao' => ['Descrição / atividades', self::resumoCampo($r['descricao'])],
+            'requisitos' => ['Requisitos', self::resumoCampo($r['requisitos'])],
+            'beneficios' => ['Benefícios', self::resumoCampo($r['beneficios'])],
+            'contato' => ['Contato do anúncio', $r['contato']],
+            'quantidade' => ['Quantidade de vagas', $r['quantidade'] ? (string)$r['quantidade'] : ''],
+            'competencias' => ['Competências (match)', implode(', ', $r['competencias'])],
+        ];
+        $itens = []; $cont = ['lido' => 0, 'padrao' => 0, 'falta' => 0];
+        foreach ($campos as $campo => [$rot, $valor]) {
+            $st = in_array($campo, $r['padrao'] ?? [], true) ? 'padrao' : ($valor !== '' ? 'lido' : 'falta');
+            // Categoria sugerida que não existe no cadastro não é aplicada ao formulário.
+            if ($campo === 'categoria' && $valor !== '' && $categoriaNome === '') { $st = 'falta'; $valor = $r['categoria'].' (sugerida — não cadastrada)'; }
+            $cont[$st]++;
+            $itens[] = ['campo' => $campo, 'rotulo' => $rot, 'valor' => (string)$valor, 'status' => $st];
+        }
+        return ['itens' => $itens, 'lidos' => $cont['lido'], 'padrao' => $cont['padrao'], 'faltando' => $cont['falta']];
+    }
+
+    /** Primeira linha + "(+N linhas)" para caber no relatório. */
+    private static function resumoCampo(string $t): string {
+        $linhas = array_values(array_filter(explode("\n", $t), fn($l) => trim($l) !== ''));
+        if (!$linhas) return '';
+        $p = mb_strimwidth($linhas[0], 0, 110, '…');
+        return count($linhas) > 1 ? $p.' (+'.(count($linhas) - 1).' '.(count($linhas) === 2 ? 'linha' : 'linhas').')' : $p;
+    }
+
+    /** "Grupo Dourado contrata Auxiliar de Cozinha em Águas Claras." / "Vaga de Motorista em Ceilândia." */
+    private static function abertura(array $r): string {
+        $t = trim($r['titulo']);
+        if ($t === '' || str_starts_with($t, 'Vagas abertas')) return '';
+        $local = $r['remoto'] === 'remoto' ? ' (trabalho remoto)' : ($r['cidade'] !== '' && !in_array('cidade', $r['padrao'] ?? [], true) ? ' em '.$r['cidade'] : '');
+        return ($r['anunciante'] !== '' ? $r['anunciante'].' contrata '.$t : 'Vaga de '.$t).$local.'.';
     }
 
     /** Categoria pelas competências; as competências do título contam em dobro. */
@@ -217,9 +279,20 @@ final class ExtracaoVaga {
                 foreach (self::SECOES as $k => $titulos) if (in_array($cab, $titulos, true)) { $achou = $k; break; }
             }
             if ($achou) { $atual = $achou; if (trim($partes[1] ?? '') !== '') $sec[$atual][] = trim($partes[1]); continue; }
+            // Horário e local são seções curtas: a linha seguinte só entra nelas se for continuação
+            // ("Segunda a sábado", "Shopping X"); senão ("Salário: R$ ... + VT") volta a ser classificada.
+            if (in_array($atual, ['horario', 'local'], true) && !self::continuaSecao($atual, $l)) $atual = null;
             if ($atual === null) $soltas[] = $l; else $sec[$atual][] = $l;
         }
         return [$soltas, $sec];
+    }
+
+    private static function continuaSecao(string $secao, string $l): bool {
+        $n = Competencias::normalizar($l);
+        if (preg_match('/r \d|\b(salario|beneficios?|requisitos?|vt|vr|va|vale)\b/', $n)) return false;
+        return $secao === 'horario'
+            ? (bool)preg_match('/\d{1,2}\s*h\b|\d{1,2}h\d{2}|\b\d{1,2}\s*x\s*\d{1,2}\b|\b(segunda|terca|quarta|quinta|sexta|sabado|domingo|escala|turno|folga|folgas|feriados?|diurno|noturno|madrugada|integral)\b/', $n)
+            : self::ehLocalSolto($n) || (bool)preg_match('/\b(shopping|setor|quadra|qd|conjunto|lote|loja|bloco|rua|avenida|av|sala|df|go)\b/', $n);
     }
 
     private static function juntar(array $linhas): string {
@@ -278,6 +351,15 @@ final class ExtracaoVaga {
             if (preg_match('/^(?:vaga|cargo|fun[cç][aã]o|oportunidade|posi[cç][aã]o)\s*(?:de|para)?\s*:\s*(.{3,80})$/iu', $l, $m)) return self::maiuscula(self::limparTitulo($m[1]));
             if (preg_match('/^(?:cargo|vaga|fun[cç][aã]o)\s*:?$/iu', $l) && isset($linhas[$i + 1]) && self::ehCargo($linhas[$i + 1])) return self::maiuscula(self::limparTitulo($linhas[$i + 1]));
         }
+        // 1b) Frase "O Giraffas está contratando atendente de lanchonete para o Shopping…".
+        if (count($cargos) < 2) {
+            foreach (array_slice($linhas, 0, 6) as $l) {
+                if (preg_match('/\b(?:contratando|contrata|precisa(?:-se)? de|procura|seleciona)\s+(?:um|uma|uns|umas)?\s*([\p{L}\s()\/]{4,50}?)(?=\s+(?:para|no|na|em|com|das|nas|nos)\b|\s*[—–,.!:-]|\s*$)/iu', $l, $m)) {
+                    $t = self::limparTitulo($m[1]);
+                    if (self::ehCargo($t) && str_word_count(Competencias::normalizar($t)) <= 6) return self::maiuscula($t);
+                }
+            }
+        }
         // 2) Lista de cargos no cartaz: até 3 no título; lista grande vira "Vagas abertas — Empresa".
         if (count($cargos) > 5) return $anunciante !== '' ? 'Vagas abertas — '.$anunciante : implode(' / ', array_slice($cargos, 0, 3)).' e outras';
         if (count($cargos) >= 2) return implode(' / ', array_slice($cargos, 0, 3));
@@ -303,6 +385,7 @@ final class ExtracaoVaga {
         if ($destaques) return '';
         // 5) Anúncio de texto: a primeira linha com cara de título.
         foreach (array_slice($linhas, 0, 4) as $l) {
+            if (preg_match('/^(local|hor[aá]rio|sal[aá]rio|requisitos?|benef[ií]cios|contato|endere[cç]o|escala|jornada)\s*:/iu', $l)) continue; // linha de campo, não título
             $t = self::limparTitulo($l);
             if (preg_match_all('/\p{L}/u', $t) >= 5 && mb_strlen($t) <= 80 && !preg_match(self::GENERICOS, Competencias::normalizar($t)) && !preg_match('/r\$|\d{4}|@|whats/iu', $t)) return self::maiuscula($t);
         }
@@ -337,6 +420,8 @@ final class ExtracaoVaga {
     private static function limparTitulo(string $t): string {
         $t = self::limparLinha($t);
         $t = preg_replace('/^(?:vaga(?:s)?(?: de emprego)?(?: abertas?| dispon[ií]veis)?(?: para| de)?|contrata(?:-se|mos)?|estamos contratando|oportunidade(?: de emprego)?(?: para)?|precisa-se de|urgente|temos vagas?(?: para)?|contratamos)\s*[:!\-–—]?\s*/iu', '', trim($t)) ?? $t;
+        $t = preg_replace('/^(?:tempor[aá]ri[oa]s?|clt|pj|efetivo|freelancer?)\s*[-–—:|]\s*/iu', '', $t) ?? $t;   // "Temporário - Operador de Caixa"
+        $t = preg_replace('/\s*\(?\bc[oó]d(?:igo)?\.?\s*:?\s*\d+\)?/iu', '', $t) ?? $t;                         // "(cód. 1308)"
         $t = self::cortarAteCargo($t);
         $t = preg_replace('/\s*[-–|]\s*(?:'.implode('|', ['Brasília','DF','Taguatinga','Ceilândia','Guará','Águas Claras','Samambaia','Asa Norte','Asa Sul','Gama']).')\b.*$/iu', '', $t) ?? $t;
         $t = preg_replace('/^\d\s+(?=\p{Lu})/u', '', $t) ?? $t;                 // número de ícone antes do cargo
@@ -349,7 +434,8 @@ final class ExtracaoVaga {
     /** Palavras em CAIXA ALTA viram "Auxiliar de Cozinha" (preposições minúsculas, siglas mantidas). */
     private static function caixa(string $t): string {
         if ($t === '') return $t;
-        $siglas = ['RH', 'DP', 'SDR', 'PAP', 'TI', 'CLT', 'PJ', 'SIA', 'DF', 'GO', 'SESC', 'SAC', 'CNH', 'EAD', 'UX', 'UI', 'MEI', 'II', 'III'];
+        $siglas = ['RH', 'DP', 'SDR', 'PAP', 'TI', 'CLT', 'PJ', 'SIA', 'DF', 'GO', 'SESC', 'SAC', 'CNH', 'EAD', 'UX', 'UI', 'MEI', 'II', 'III',
+                   'PHP', 'SQL', 'HTML', 'CSS', 'JS', 'SAP', 'ERP', 'CRM', 'PCD', 'NR10', 'BI', 'QA', 'DBA', 'SUS', 'CRECI', 'COREN', 'CRM', 'EPI'];
         $out = [];
         foreach (preg_split('/(\s+|\/|-)/u', $t, -1, PREG_SPLIT_DELIM_CAPTURE) ?: [] as $i => $p) {
             if (trim($p) === '' || in_array($p, ['/', '-'], true)) { $out[] = $p; continue; }

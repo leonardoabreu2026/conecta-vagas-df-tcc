@@ -60,7 +60,7 @@ final class CurriculoDAO {
 
     /** A empresa pode abrir o currículo que foi enviado em candidatura para uma vaga dela. */
     public function enviadoParaEmpresa(int $curriculoId, int $perfilEmpresaId): bool {
-        $s = Database::getConexao()->prepare("SELECT 1 FROM candidaturas c JOIN vagas v ON v.id=c.vaga_id WHERE c.curriculo_id=? AND v.perfil_empresa_id=? LIMIT 1");
+        $s = Database::getConexao()->prepare("SELECT 1 FROM candidaturas c JOIN vagas v ON v.id=c.vaga_id WHERE c.curriculo_id=? AND v.perfil_empresa_id=? AND c.status<>'cancelada' LIMIT 1");
         $s->execute([$curriculoId, $perfilEmpresaId]);
         return (bool)$s->fetchColumn();
     }

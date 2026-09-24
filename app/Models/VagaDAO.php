@@ -14,7 +14,7 @@ final class VagaDAO {
 
     /** empresa_nome: o anunciante (vaga publicada pela curadoria, ex.: lida de um cartaz) ou a empresa dona da vaga. */
     private const SELECT = "SELECT v.*, c.nome AS categoria_nome, COALESCE(NULLIF(v.anunciante,''), NULLIF(p.nome_fantasia,''), u.nome) AS empresa_nome,
-        COALESCE(NULLIF(p.nome_fantasia,''), u.nome) AS publicado_por, p.usuario_id AS empresa_usuario_id,
+        COALESCE(NULLIF(p.nome_fantasia,''), u.nome) AS publicado_por, p.usuario_id AS empresa_usuario_id, COALESCE(u.ativo,0) AS empresa_ativa,
         (COALESCE(v.anunciante,'') = '' AND EXISTS(SELECT 1 FROM assinaturas a WHERE a.usuario_id = p.usuario_id AND a.plano = 'empresa' AND a.status = 'ativa' AND a.data_fim >= CURDATE())) AS empresa_premium
         FROM vagas v
         LEFT JOIN categorias c ON c.id = v.categoria_id
@@ -81,12 +81,13 @@ final class VagaDAO {
      */
     public function listar(bool $ativas = true, array $f = []): array {
         $where = []; $p = [];
-        if ($ativas) $where[] = self::ATIVA;
+        // Área pública: só vagas abertas de empresas com a conta ativa (empresa bloqueada some da busca).
+        if ($ativas) { $where[] = self::ATIVA; $where[] = "u.ativo = 1"; }
         if (($f['q'] ?? '') !== '') {
             $where[] = "(v.titulo LIKE ? OR v.descricao LIKE ? OR v.requisitos LIKE ? OR c.nome LIKE ? OR p.nome_fantasia LIKE ? OR v.anunciante LIKE ?)";
-            array_push($p, ...array_fill(0, 6, '%'.$f['q'].'%'));
+            array_push($p, ...array_fill(0, 6, like($f['q'])));
         }
-        if (($f['cidade'] ?? '') !== '') { $where[] = "v.cidade LIKE ?"; $p[] = '%'.$f['cidade'].'%'; }
+        if (($f['cidade'] ?? '') !== '') { $where[] = "v.cidade LIKE ?"; $p[] = like($f['cidade']); }
         if (!empty($f['categoria_id'])) { $where[] = "v.categoria_id = ?"; $p[] = (int)$f['categoria_id']; }
         if (in_array($f['nivel'] ?? '', self::NIVEIS, true)) { $where[] = "v.nivel_experiencia = ?"; $p[] = $f['nivel']; }
         if (in_array($f['remoto'] ?? '', self::MODELOS, true)) { $where[] = "v.remoto = ?"; $p[] = $f['remoto']; }
@@ -113,8 +114,10 @@ final class VagaDAO {
         return $s->fetch() ?: null;
     }
 
+    /** Aberta = ativa, no prazo e de empresa com a conta ativa (quando a linha traz empresa_ativa). */
     public function estaAberta(array $v): bool {
-        return $v['status'] === 'ativa' && (empty($v['data_expiracao']) || $v['data_expiracao'] >= date('Y-m-d'));
+        return $v['status'] === 'ativa' && (empty($v['data_expiracao']) || $v['data_expiracao'] >= date('Y-m-d'))
+            && (int)($v['empresa_ativa'] ?? 1) === 1;
     }
 
     public function listarPorEmpresa(int $pid): array {
@@ -140,6 +143,35 @@ final class VagaDAO {
             return true;
         } catch (Throwable) {
             return false;
+        }
+    }
+
+    /**
+     * Ativar / pausar / encerrar com um clique (lista do painel). Ao ATIVAR com $limite (plano básico),
+     * conta e grava na mesma transação, como salvarComLimite().
+     * @return string 'ok' | 'limite' | 'erro'
+     */
+    public function alterarStatus(int $id, string $status, ?int $limite = null): string {
+        if (!in_array($status, self::STATUS, true)) return 'erro';
+        $db = Database::getConexao();
+        try {
+            $db->beginTransaction();
+            $v = $db->prepare("SELECT perfil_empresa_id FROM vagas WHERE id=?");
+            $v->execute([$id]);
+            $pid = $v->fetchColumn();
+            if ($pid === false) { $db->rollBack(); return 'erro'; }
+            if ($status === 'ativa' && $limite !== null) {
+                $db->prepare("SELECT id FROM perfis WHERE id=? FOR UPDATE")->execute([(int)$pid]);
+                $c = $db->prepare("SELECT COUNT(*) FROM vagas v WHERE v.perfil_empresa_id=? AND v.id<>? AND ".self::ATIVA);
+                $c->execute([(int)$pid, $id]);
+                if ((int)$c->fetchColumn() >= $limite) { $db->rollBack(); return 'limite'; }
+            }
+            $db->prepare("UPDATE vagas SET status=? WHERE id=?")->execute([$status, $id]);
+            $db->commit();
+            return 'ok';
+        } catch (Throwable) {
+            if ($db->inTransaction()) $db->rollBack();
+            return 'erro';
         }
     }
 

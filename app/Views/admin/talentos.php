@@ -4,110 +4,68 @@
  * Recebe de EmpresaController::talentos(): $talentos, $isPremium, $termo e $cidade.
  * No básico, a busca não considera o nome e o "Ver portfólio" abre só a prévia (PerfilController::portfolio).
  */
+$acoesCab = $isPremium
+    ? '<span class="badge-pro">Empresa Premium · acesso completo</span>'
+    : '<a href="'.e(url('planos.php')).'" class="btn btn-gold btn-sm">Desbloquear acesso completo</a>';
 ?>
+<div class="pn">
 <?php require __DIR__.'/../layouts/admin_nav.php'; ?>
-
-<div class="section-head">
-    <div>
-        <h1>👥 Banco de Talentos do DF</h1>
-        <p class="muted">Encontre candidatos qualificados para as suas vagas com busca por habilidades e experiências.</p>
-    </div>
-    <div>
-        <?php if ($isPremium): ?>
-            <span class="badge-pro" style="font-size: 13px; padding: 6px 14px;">💼 Empresa Premium · Acesso Completo</span>
-        <?php else: ?>
-            <a href="<?=url('planos.php')?>" class="btn btn-gold btn-sm">⭐ Desbloquear Acesso Completo</a>
-        <?php endif; ?>
-    </div>
-</div>
-
-
+<?=painel_cabecalho('Banco de Talentos do DF', 'Encontre candidatos para as suas vagas pela busca por cargo, habilidades e experiências.', $acoesCab)?>
 
 <?php if (!$isPremium): ?>
-    <div class="panel" style="border: 2px solid #3b82f6; background: linear-gradient(135deg,#eff6ff,#ffffff); margin-bottom: 24px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
-            <div>
-                <span class="badge-pro">Recurso Exclusivo Empresa Premium</span>
-                <h2 style="margin: 10px 0 6px;">Pesquise e contrate os melhores talentos diretamente</h2>
-                <p class="muted" style="margin:0; max-width: 650px;">
-                    Com o <strong>Plano Empresa Premium</strong>, sua empresa pode visualizar perfis completos, dados de contato e fazer download imediato dos currículos de todos os candidatos do Distrito Federal.
-                </p>
-            </div>
-            <div>
-                <a href="<?=url('planos.php')?>" class="btn" style="background:#1d4ed8; padding:12px 20px;">
-                    Assinar Empresa Premium (R$ 49,90/mês)
-                </a>
-            </div>
+    <section class="pn-oferta" aria-labelledby="oferta-titulo">
+        <div>
+            <span class="badge-pro">Recurso exclusivo Empresa Premium</span>
+            <h2 id="oferta-titulo">Pesquise e contrate os melhores talentos diretamente</h2>
+            <p>Com o <strong>Plano Empresa Premium</strong>, sua empresa vê perfis completos, dados de contato e baixa os currículos dos candidatos do Distrito Federal.</p>
         </div>
-    </div>
+        <a href="<?=url('planos.php')?>" class="btn">Assinar Empresa Premium (R$ 49,90/mês)</a>
+    </section>
 <?php endif; ?>
 
-<form class="search" method="get">
-    <input name="q" placeholder="Buscar por cargo, habilidade ou competência (ex.: Excel, Vendas, TI)" value="<?=e($termo)?>">
-    <input name="cidade" placeholder="Cidade (ex.: Brasília, Taguatinga)" value="<?=e($cidade)?>">
+<form class="filtros" method="get" style="grid-template-columns:2fr 1fr auto">
+    <input name="q" placeholder="Cargo, habilidade ou competência (ex.: Excel, Vendas, TI)" value="<?=e($termo)?>" aria-label="Buscar por cargo, habilidade ou competência">
+    <input name="cidade" placeholder="Cidade (ex.: Taguatinga)" value="<?=e($cidade)?>" aria-label="Cidade">
     <button class="btn">Pesquisar</button>
 </form>
 <?php if (!$isPremium): ?>
     <p class="small muted">No plano básico, a busca considera cargo, habilidades, experiências e cursos (não o nome do candidato).</p>
 <?php endif; ?>
+<div class="pn-contagem"><h2>Talentos</h2><span><?=gf_num(count($talentos))?> <?=gf_plural(count($talentos), 'candidato com perfil público', 'candidatos com perfil público')?></span></div>
 
 <?php if (!$talentos): ?>
     <div class="empty">Nenhum talento encontrado com os filtros informados.</div>
 <?php else: ?>
     <div class="grid">
-        <?php foreach ($talentos as $t): ?>
-            <article class="card" style="<?=$t['is_vip'] ? 'border: 2px solid #facc15;' : ''?>">
-                <div class="card-body">
-                    <div style="display:flex; justify-content:space-between; align-items:start; gap:8px;">
-                        <div>
-                            <?php if ($t['is_vip']): ?>
-                                <span class="badge-vip" style="margin-bottom: 6px;">⭐ Candidato VIP</span><br>
-                            <?php endif; ?>
-                            <span class="tag"><?=e($t['nivel_experiencia'] ? rotulo((string)$t['nivel_experiencia']) : 'Candidato')?></span>
-                        </div>
-                        <span class="meta"><?=e($t['cidade'] ?: 'Brasília')?>/<?=e($t['uf'] ?: 'DF')?></span>
+        <?php foreach ($talentos as $t): $nomeExibido = $isPremium ? $t['nome'] : mb_substr((string)$t['nome'], 0, 4).'*** (Candidato)'; ?>
+            <article class="pn-talento<?=$t['is_vip'] ? ' vip' : ''?>">
+                <div class="pn-talento-topo">
+                    <div>
+                        <?php if ($t['is_vip']): ?><span class="badge-vip">Candidato VIP</span> <?php endif; ?>
+                        <span class="tag"><?=e($t['nivel_experiencia'] ? rotulo((string)$t['nivel_experiencia']) : 'Candidato')?></span>
                     </div>
-
-                    <h3 style="margin: 12px 0 4px;">
-                        <?php if ($isPremium): ?>
-                            <?=e($t['nome'])?>
+                    <span class="meta"><?=e($t['cidade'] ?: 'Brasília')?>/<?=e($t['uf'] ?: 'DF')?></span>
+                </div>
+                <h3><?=e($nomeExibido)?></h3>
+                <p class="pn-talento-cargo"><?=e($t['titulo_profissional'] ?: 'Profissional em busca de oportunidades')?></p>
+                <p class="pn-talento-bio"><?=e(mb_strimwidth((string)($t['bio'] ?: $t['objetivo']), 0, 110, '...'))?></p>
+                <?php if (!empty($t['habilidades'])): ?><p class="pn-talento-hab"><b>Habilidades:</b> <?=e(mb_strimwidth((string)$t['habilidades'], 0, 80, '...'))?></p><?php endif; ?>
+                <a class="btn btn-sm btn-outline" target="_blank" rel="noopener" href="<?=url('view/perfil/portfolio.php?id='.(int)$t['id'])?>"><?=$isPremium ? 'Ver portfólio' : 'Ver prévia do portfólio'?><span class="sr-only"> de <?=e($nomeExibido)?> (abre em nova aba)</span></a>
+                <div class="pn-talento-rodape">
+                    <?php if ($isPremium): ?>
+                        <small class="muted"><?=e($t['telefone'] ?: $t['email'])?></small>
+                        <?php if ($t['curriculo_id']): ?>
+                            <a class="btn btn-sm btn-green" href="<?=url('download.php?id='.(int)$t['curriculo_id'])?>"><?=icone('formulario', 14)?> Ver currículo</a>
                         <?php else: ?>
-                            <?=e(mb_substr($t['nome'], 0, 4))?>*** (Candidato)
+                            <span class="meta">Sem currículo em anexo</span>
                         <?php endif; ?>
-                    </h3>
-                    <p class="meta" style="font-weight: 700; color: #1e3a8a;">
-                        <?=e($t['titulo_profissional'] ?: 'Profissional em busca de oportunidades')?>
-                    </p>
-
-                    <p style="font-size: 13.5px; color: #475569; margin: 10px 0;">
-                        <?=e(mb_strimwidth((string)($t['bio'] ?: $t['objetivo']), 0, 110, '...'))?>
-                    </p>
-
-                    <?php if (!empty($t['habilidades'])): ?>
-                        <div style="margin: 8px 0; font-size: 12.5px; color: #334155;">
-                            <b>Habilidades:</b> <?=e(mb_strimwidth((string)$t['habilidades'], 0, 80, '...'))?>
-                        </div>
+                    <?php else: ?>
+                        <span class="meta pn-borrado" aria-hidden="true">(61) 99999-9999</span><span class="sr-only">Contato disponível no plano Premium.</span>
+                        <a href="<?=url('planos.php')?>" class="btn btn-sm btn-outline">Liberar contato</a>
                     <?php endif; ?>
-
-                    <a class="btn btn-sm btn-outline" style="width:100%;margin-top:8px" target="_blank" href="<?=url('view/perfil/portfolio.php?id='.(int)$t['id'])?>"><?=$isPremium ? 'Ver portfólio' : 'Ver prévia do portfólio'?></a>
-                    <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); display:flex; justify-content:space-between; align-items:center;">
-                        <?php if ($isPremium): ?>
-                            <div>
-                                <small class="muted"><?=e($t['telefone'] ?: $t['email'])?></small>
-                            </div>
-                            <?php if ($t['curriculo_id']): ?>
-                                <a class="btn btn-sm btn-green" href="<?=url('download.php?id='.(int)$t['curriculo_id'])?>">📄 Ver currículo</a>
-                            <?php else: ?>
-                                <span class="meta">Sem currículo em anexo</span>
-                            <?php endif; ?>
-                        <?php else: ?>
-                            <span class="meta" style="filter: blur(3px); user-select:none;">(61) 99999-9999</span>
-                            <a href="<?=url('planos.php')?>" class="btn btn-sm btn-outline" style="font-size: 12px;">🔒 Liberar contato</a>
-                        <?php endif; ?>
-                    </div>
                 </div>
             </article>
         <?php endforeach; ?>
     </div>
 <?php endif; ?>
-
+</div>
