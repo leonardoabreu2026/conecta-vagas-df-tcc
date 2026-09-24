@@ -68,6 +68,9 @@
   </div>
 </section>
 
+<?php require_once __DIR__.'/../partials/doacao.php'; $pixDoacao = Pix::doacao(); ?>
+<?=cv_doacao_faixa($pixDoacao)?>
+
 <section class="cv-secao">
   <div class="cv-wrap">
     <?=cv_titulo_secao('formatura', 'Cursos e E-books', 'Capacitação gratuita para aumentar o seu match com as vagas', url('cursos.php'), 'Ver todos os cursos')?>
@@ -81,26 +84,33 @@
 
 <?php
 // Painéis relâmpago: um por vez, no canto da tela, de tempos em tempos (app.js, bloco [data-relampago]).
+// [ícone, cor, título, texto, link]. A doação abre a sequência e volta depois dos planos (quem não assina, doa).
 $relampagos = [
-  ['grupo', 'Quem somos', 'Uma plataforma do Distrito Federal que reúne, num só lugar, vagas de emprego, cursos gratuitos e qualificação profissional.', null],
-  ['alvo', 'Nosso objetivo', 'Centralizar as oportunidades de emprego e capacitação do DF e mostrar, com o match, quais vagas combinam com o seu perfil.', null],
-  ['seta', 'Nossa missão', 'Conectar talentos às oportunidades, promovendo inclusão profissional, qualificação e crescimento de carreira.', null],
-  ['check', 'Nossos valores', 'Inclusão, transparência, respeito a quem procura e a quem contrata — e a certeza de que educação transforma vidas.', null],
-  ['planos', 'Planos', 'Comece grátis. Candidato VIP por R$ 9,90/mês e Empresa Premium por R$ 49,90/mês, sem fidelidade.', ['planos.php', 'Conhecer os planos']],
+  ['coracao', 'doacao', 'Apoie com um Pix', 'Não quer assinar? Doe qualquer valor e ajude a manter o Conecta Vagas DF no ar e gratuito.', ['#apoie', 'Ver como doar']],
+  ['grupo', 'azul', 'Quem somos', 'Uma plataforma do Distrito Federal que reúne, num só lugar, vagas de emprego, cursos gratuitos e qualificação profissional.', ['vagas.php', 'Ver as vagas']],
+  ['alvo', 'verde', 'Nosso objetivo', 'Centralizar as oportunidades de emprego e capacitação do DF e mostrar, com o match, quais vagas combinam com o seu perfil.', ['cadastro.php', 'Criar conta grátis']],
+  ['seta', 'roxo', 'Nossa missão', 'Conectar talentos às oportunidades, promovendo inclusão profissional, qualificação e crescimento de carreira.', ['cursos.php', 'Ver cursos gratuitos']],
+  ['check', 'azul', 'Nossos valores', 'Inclusão, transparência, respeito a quem procura e a quem contrata — e a certeza de que educação transforma vidas.', null],
+  ['planos', 'dourado', 'Planos', 'Comece grátis. Candidato VIP por R$ 9,90/mês e Empresa Premium por R$ 49,90/mês, sem fidelidade.', ['planos.php', 'Conhecer os planos']],
+  ['coracao', 'doacao', 'Gostou do nosso site?', 'Em vez de assinar, você pode apoiar o projeto com uma doação pelo QR Code Pix. Qualquer valor ajuda!', ['#apoie', 'Doar pelo Pix']],
 ];
 ?>
-<aside class="cv-relampago" data-relampago aria-label="Conheça o Conecta Vagas DF" hidden>
+<aside class="cv-relampago" data-relampago aria-label="Conheça e apoie o Conecta Vagas DF" hidden>
   <button type="button" class="cv-relampago-fechar" aria-label="Fechar os painéis">×</button>
-  <?php foreach ($relampagos as [$ic, $tit, $txt, $link]): ?>
-    <div class="cv-relampago-painel">
-      <span class="cv-relampago-ic"><?=icone($ic, 22)?></span>
-      <div>
-        <small><?=icone('raio', 12)?>Conecta Vagas DF</small>
+  <?php foreach ($relampagos as $i => [$ic, $cor, $tit, $txt, $link]): ?>
+    <div class="cv-relampago-painel cv-rl-<?=$cor?>">
+      <span class="cv-relampago-ic"><?=icone($ic, 24)?></span>
+      <div class="cv-relampago-txt">
+        <small><?=icone('raio', 12)?><?=$cor === 'doacao' ? 'Apoie o projeto' : 'Conecta Vagas DF'?> <em><?=$i + 1?>/<?=count($relampagos)?></em></small>
         <b><?=e($tit)?></b>
         <p><?=e($txt)?></p>
-        <?php if ($link): ?><a href="<?=url($link[0])?>"><?=e($link[1])?> →</a><?php endif; ?>
+        <?php if ($cor === 'doacao'): ?>
+          <div class="cv-relampago-pix"><?=cv_doacao_qr($pixDoacao, 104)?><?=cv_doacao_copiar($pixDoacao, 'cv-btn cv-btn-verde cv-btn-p')?></div>
+        <?php endif; ?>
+        <?php if ($link): ?><a class="cv-relampago-link" href="<?=str_starts_with($link[0], '#') ? e($link[0]) : url($link[0])?>"><?=e($link[1])?> →</a><?php endif; ?>
       </div>
     </div>
   <?php endforeach; ?>
+  <button type="button" class="cv-relampago-prox" data-relampago-prox aria-label="Próximo painel">›</button>
   <span class="cv-relampago-barra" aria-hidden="true"><i></i></span>
 </aside>

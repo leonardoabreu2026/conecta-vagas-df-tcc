@@ -57,12 +57,12 @@ document.addEventListener('DOMContentLoaded',()=>{
     iniciar();
   });
 
-  // Painéis relâmpago da página inicial: um por vez, no canto da tela, de tempos em tempos.
-  // Pausam com o mouse/foco em cima; quem fecha não vê mais nesta sessão.
+  // Painéis relâmpago da página inicial: um por vez, no canto da tela, em sequência (a doação abre e fecha a roda).
+  // Pausam com o mouse/foco em cima; "›" pula para o próximo; quem fecha fica 3 minutos sem vê-los.
   document.querySelectorAll('[data-relampago]').forEach(r=>{
     const paineis=[...r.querySelectorAll('.cv-relampago-painel')], barra=r.querySelector('.cv-relampago-barra i');
-    const CHAVE='cv-relampago-fechado', VISIVEL=9000, INTERVALO=14000, INICIO=3500;
-    try{ if(sessionStorage.getItem(CHAVE)) return; }catch(e){}
+    const CHAVE='cv-relampago-fechado', VISIVEL=11000, INTERVALO=5000, INICIO=1500, PAUSA_FECHADO=180000;
+    try{ const f=+sessionStorage.getItem(CHAVE); if(f && Date.now()-f<PAUSA_FECHADO) return; }catch(e){}
     if(!paineis.length) return;
     let n=0, timer=null, restante=VISIVEL, desde=0, aberto=false, pausado=false;
     const agendar=(fn,ms)=>{ clearTimeout(timer); timer=setTimeout(fn,ms); };
@@ -73,7 +73,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     const correr=ms=>{ desde=Date.now(); restante=ms; if(barra){ barra.style.transition='none'; barra.style.width=(ms/VISIVEL*100)+'%'; void barra.offsetWidth; barra.style.transition='width '+ms+'ms linear'; barra.style.width='0%'; } agendar(esconder,ms); };
     const mostrar=()=>{
       paineis.forEach((p,k)=>p.hidden=k!==n);
-      r.hidden=false; void r.offsetWidth; r.classList.add('visivel'); aberto=true;
+      r.classList.remove('visivel'); r.hidden=false; void r.offsetWidth; r.classList.add('visivel'); aberto=true; // reinicia a animação de entrada
       if(!pausado) correr(VISIVEL);
     };
     const pausar=()=>{ if(!aberto||pausado) return; pausado=true; clearTimeout(timer); restante=Math.max(1500,restante-(Date.now()-desde)); if(barra){ barra.style.transition='none'; barra.style.width=(restante/VISIVEL*100)+'%'; } };
@@ -82,8 +82,12 @@ document.addEventListener('DOMContentLoaded',()=>{
     r.addEventListener('focusin',pausar); r.addEventListener('focusout',retomar);
     r.querySelector('.cv-relampago-fechar').addEventListener('click',()=>{
       clearTimeout(timer); r.classList.remove('visivel'); setTimeout(()=>{ r.hidden=true; },300);
-      try{ sessionStorage.setItem(CHAVE,'1'); }catch(e){}
+      try{ sessionStorage.setItem(CHAVE,String(Date.now())); }catch(e){}
     });
+    const prox=r.querySelector('[data-relampago-prox]');
+    if(prox) prox.addEventListener('click',()=>{ const p=pausado; n=(n+1)%paineis.length; pausado=false; mostrar(); if(p) pausar(); });
+    // Clicar em "Ver como doar" leva ao rodapé e deixa o painel da doação parado na tela.
+    r.querySelectorAll('a[href^="#"]').forEach(a=>a.addEventListener('click',()=>pausar()));
     agendar(mostrar,INICIO);
   });
 
