@@ -70,6 +70,139 @@ confere('ExtracaoVaga (cartaz): empresa repetida, cargos grandes, faixa salarial
     && str_contains($cartaz['beneficios'], 'VT (DF ou GO)') && substr_count($cartaz['beneficios'], 'Premiação por assiduidade') === 1
     && str_contains($cartaz['beneficios'], 'Bolsa') && !str_contains($cartaz['requisitos'], 'Bolsa') && !str_contains($cartaz['descricao'], 'outras vagas'),
     json_encode([$cartaz['anunciante'], $cartaz['titulo'], $cartaz['salario_minimo'], $cartaz['salario_maximo'], $cartaz['beneficios'], $cartaz['requisitos']], JSON_UNESCAPED_UNICODE));
+// Cartaz real (RE9COM, roçadeira): cargo em 4 linhas, palavra partida pelo OCR, slogan, logotipo ilegível, "R$ 48,00 ror DIA".
+$ocrRe9 = array (
+  'texto' => 'REQ(.ÓOM
+Soluções e Serviços
+TEMOS
+VAGA
+OPERADOR DE
+MÁQUI NA
+COSTAL
+(ROÇADEIRA)
+LOCAL DE TRABALHO:
+BRASÍLIA-DF
+VALE REFEIÇÃO
+CESTA BÁSICA
+© ENVIE SEU CURRÍCULO
+PELO WHATSAPP:
+SOLUÇÕES QUE GERAM VALOR. SERVIÇOS QUE FAZEM A DIFERENÇA.',
+  'complemento' => 
+  array (
+    0 => 'MAQUINA',
+    1 => 'BENEFICIOS',
+    2 => 'R$ 48,00 ror DIA',
+    3 => 'PLANO DE SAUDE',
+    4 => 'EGUR',
+    5 => 'ESPE',
+    6 => 'RO LUGAR',
+    7 => 'OMETIDA',
+    8 => '—— SOoLUÇÕES QUE GERAM VALOR. SERVIÇOS QUE FAZEM A DIFERENÇA',
+    9 => 'OPORTUNIDADE PARA',
+    10 => 'QUEM FAZ A DIFERENÇA!',
+    11 => 'R$ 48,00 rPor',
+    12 => '61 97402-3121',
+    13 => 'V OMPROMETIDA',
+    14 => 'REQ(COM',
+    15 => 'QUIPE',
+    16 => 'RESI',
+  ),
+  'destaques' => 
+  array (
+    0 => 'REQ(.ÓOM',
+    1 => 'REQ(COM',
+    2 => 'VAGA',
+    3 => 'MÁQUI NA',
+    4 => 'MAQUINA',
+    5 => 'COSTAL',
+    6 => 'OPORTUNIDADE PARA',
+    7 => 'OPERADOR DE',
+    8 => '(ROÇADEIRA)',
+    9 => 'BRASÍLIA-DF',
+  ),
+  'todas' => 
+  array (
+    0 => 'Soluções e Serviços',
+    1 => 'TEMOS',
+    2 => 'VAGA',
+    3 => 'OPERADOR DE',
+    4 => 'MÁQUI NA',
+    5 => 'COSTAL',
+    6 => '(ROÇADEIRA)',
+    7 => 'LOCAL DE TRABALHO:',
+    8 => 'BRASÍLIA-DF',
+    9 => 'VALE REFEIÇÃO',
+    10 => 'CESTA BÁSICA',
+    11 => '© ENVIE SEU CURRÍCULO',
+    12 => 'PELO WHATSAPP:',
+    13 => 'SOLUÇÕES QUE GERAM VALOR. SERVIÇOS QUE FAZEM A DIFERENÇA.',
+    14 => 'REQ(ÓOM',
+    15 => 'Soluções e Serviços',
+    16 => 'TEMOS',
+    17 => 'VAGA',
+    18 => 'OPERADOR DE',
+    19 => 'MAQUINA',
+    20 => 'COSTAL',
+    21 => '(ROÇADEIRA)',
+    22 => 'LOCAL DE TRABALHO',
+    23 => 'BRASILIA-DF',
+    24 => 'BENEFICIOS',
+    25 => 'VALE REFEIÇÃO',
+    26 => 'R$ 48,00 ror DIA',
+    27 => 'PLANO DE SAUDE',
+    28 => 'CESTA BÁSICA',
+    29 => 'ENVIE SEU CURRÍCULO',
+    30 => 'PELO WHATSAPP:',
+    31 => 'EGUR',
+    32 => 'ESPE',
+    33 => 'RO LUGAR',
+    34 => 'OMETIDA',
+    35 => '—— SOoLUÇÕES QUE GERAM VALOR. SERVIÇOS QUE FAZEM A DIFERENÇA',
+    36 => 'Soluções e Serviços',
+    37 => 'TEMOS',
+    38 => 'OPORTUNIDADE PARA',
+    39 => 'QUEM FAZ A DIFERENÇA!',
+    40 => 'OPERADOR DE',
+    41 => 'MAQUINA',
+    42 => 'COSTAL',
+    43 => '(ROÇADEIRA)',
+    44 => 'LOCAL DE TRABALHO:',
+    45 => 'BRASÍLIA-DF',
+    46 => 'VALE REFEIÇÃO',
+    47 => 'R$ 48,00 rPor',
+    48 => 'CESTA BÁSICA',
+    49 => 'ENVIE SEU CURRÍCULO',
+    50 => 'PELO WHATSAPP:',
+    51 => '61 97402-3121',
+    52 => 'V OMPROMETIDA',
+    53 => 'SOLUÇÕES QUE GERAM VALOR. SERVIÇOS QUE FAZEM A DIFERENÇA.',
+    54 => 'REQ(COM',
+    55 => 'Soluções e Serviços',
+    56 => 'TEMOS',
+    57 => 'VAGA',
+    58 => 'OPERADOR DE',
+    59 => 'MAQUINA',
+    60 => 'COSTAL',
+    61 => '(ROÇADEIRA)',
+    62 => 'LOCAL DE TRABALHO',
+    63 => 'BRASILIA-DF',
+    64 => 'BENEFICIOS',
+    65 => 'VALE REFEIÇÃO',
+    66 => 'R$ 48,00 ror DIA',
+    67 => 'PLANO DE SAUDE',
+    68 => 'CESTA BÁSICA',
+    69 => 'ENVIE SEU CURRÍCULO',
+    70 => 'PELO WHATSAPP:',
+    71 => 'QUIPE',
+    72 => 'RO LUGAR',
+    73 => 'RESI',
+    74 => '— SOLUÇÕES QUE GERAM VALOR. SERVIÇOS QUE FAZEM A DIFERENÇA',
+  ),
+);
+$re9 = ExtracaoVaga::doTexto($ocrRe9["texto"], $ocrRe9);
+confere("cartaz com cargo em várias linhas, slogan e logotipo ilegível (calibrado)", $re9["titulo"] === "Operador de Máquina Costal (Roçadeira)" && $re9["anunciante"] === ""
+    && $re9["categoria"] === "Serviços Gerais e Limpeza" && str_contains($re9["beneficios"], "Vale Refeição: R$ 48,00 por dia") && !preg_match("/solu|diferen|lugar|req\(/iu", $re9["beneficios"].$re9["descricao"])
+    && $re9["contato"] === "WhatsApp (61) 97402-3121" && $re9["cidade"] === "Brasília", json_encode([$re9["titulo"], $re9["anunciante"], $re9["categoria"], $re9["beneficios"]], JSON_UNESCAPED_UNICODE));
 $rel = ExtracaoVaga::relatorio($vaga, 'Vendas');
 confere('ExtracaoVaga::relatorio conta lidos, padrão e faltando', $rel['lidos'] + $rel['padrao'] + $rel['faltando'] === count($rel['itens']) && $rel['lidos'] >= 5
     && in_array('nivel_experiencia', array_column(array_filter($rel['itens'], fn($i) => $i['status'] === 'padrao'), 'campo'), true), json_encode([$rel['lidos'], $rel['padrao'], $rel['faltando']]));

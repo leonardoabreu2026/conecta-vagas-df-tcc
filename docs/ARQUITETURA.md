@@ -209,6 +209,13 @@ nível, modelo, descrição, requisitos, benefícios, contato, quantidade de vag
 - Seções curtas ("Horário:", "Local:") não engolem as linhas seguintes; códigos de vaga "(cód. 1308)", prefixos
   "Temporário -" e frases "está contratando X" são tratados no título.
 - Para ler imagens: Tesseract instalado (com o idioma português) e a extensão `gd` ligada no `php.ini`.
+- Calibragem do cartaz (`OcrImagem` + `ExtracaoVaga`): as 4 leituras do Tesseract rodam em paralelo (1 thread cada,
+  TSV em arquivo, tempo máximo de 90 s; se falhar, uma por uma, e leitura vazia é tentada de novo); cinza e gama são
+  aplicados na imagem original antes de ampliar. Na extração: palavra partida pelo OCR é juntada quando aparece
+  inteira em outra leitura ("MÁQUI NA" → "MÁQUINA"); cargo em várias linhas de letra grande vira um título só
+  ("Operador de Máquina Costal (Roçadeira)"); slogans (`SLOGANS`) e restos de logotipo não entram em campo nenhum;
+  nome de empresa não aceita pedaço de palavra ("RO LUGAR"); "R$ 48,00 ror DIA" vira "por dia" e o valor por dia
+  vai para o vale refeição. O cartaz real que motivou isso é um teste permanente em `tests/smoke.php`.
 
 **Cursos** (painel → Cursos e e-books): cola-se a divulgação e o sistema preenche título, instituição, link,
 carga horária, gratuito/preço, modalidade, nível, formato e categoria.

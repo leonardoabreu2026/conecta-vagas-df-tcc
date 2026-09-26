@@ -65,31 +65,25 @@ final class OcrImagem {
     public static function leituras(string $path): ?array {
         $cmd = self::comando();
         if ($cmd === null || !extension_loaded('gd') || !is_file($path)) return null;
-        $tmp = self::preparar($path);
-        if ($tmp === null) return null;
-        $neg = self::negativo($tmp);
+        $preparadas = self::preparar($path);
+        if ($preparadas === null) return null;
+        [$tmp, $neg] = $preparadas;
         try {
             $idioma = self::idioma($cmd);
             // Leituras 3 e 4: a imagem em NEGATIVO — letra clara sobre fundo escuro (faixas verdes/azuis com texto
             // branco, muito comuns em cartaz) vira letra escura sobre fundo claro, que é o que o Tesseract lê bem.
-            return [self::tsv($cmd, $tmp, 3, $idioma), self::tsv($cmd, $tmp, 11, $idioma),
-                    $neg ? self::tsv($cmd, $neg, 3, $idioma) : '', $neg ? self::tsv($cmd, $neg, 11, $idioma) : ''];
+            $trabalhos = [[$tmp, 3], [$tmp, 11]];
+            if ($neg) array_push($trabalhos, [$neg, 3], [$neg, 11]);
+            // As leituras rodam AO MESMO TEMPO (≈4× mais rápido); se o paralelo não der, uma por uma.
+            $saidas = self::tsvParalelo($cmd, $trabalhos, $idioma);
+            if (implode('', $saidas) === '') $saidas = array_map(fn($t) => self::tsv($cmd, $t[0], $t[1], $idioma), $trabalhos);
+            // Tesseract às vezes falha numa execução isolada (arquivo ainda em uso, antivírus): tenta mais uma vez.
+            if (trim($saidas[0] ?? '') === '' && trim($saidas[1] ?? '') === '') { $saidas[0] = self::tsv($cmd, $tmp, 3, $idioma); $saidas[1] = self::tsv($cmd, $tmp, 11, $idioma); }
+            return [$saidas[0] ?? '', $saidas[1] ?? '', $saidas[2] ?? '', $saidas[3] ?? ''];
         } finally {
             @unlink($tmp);
             if ($neg) @unlink($neg);
         }
-    }
-
-    /** Cópia em negativo (e com menos contraste nos tons médios) da imagem já preparada. */
-    private static function negativo(string $png): ?string {
-        $im = @imagecreatefrompng($png);
-        if (!$im) return null;
-        imagefilter($im, IMG_FILTER_NEGATE);
-        imagefilter($im, IMG_FILTER_CONTRAST, -40);
-        $out = rtrim(sys_get_temp_dir(), '\\/').DIRECTORY_SEPARATOR.'cvdf_ocr_neg_'.bin2hex(random_bytes(6)).'.png';
-        $ok = imagepng($im, $out, 1);
-        imagedestroy($im);
-        return $ok ? $out : null;
     }
 
     /**
@@ -143,7 +137,13 @@ final class OcrImagem {
     private static function vazio(): array { return ['texto' => '', 'complemento' => [], 'destaques' => [], 'confianca' => 0]; }
 
     /** Imagem ampliada, em tons de cinza e com mais contraste, salva num PNG temporário. */
-    private static function preparar(string $path): ?string {
+    /**
+     * Prepara as duas imagens que o Tesseract lê: a normal (cinza, gama, ampliada) e o NEGATIVO dela.
+     * Cinza e gama são aplicados na imagem ORIGINAL (bem menor) e o negativo sai da ampliada em memória —
+     * o mesmo resultado de antes, com uma fração do trabalho. PNG sem compressão: o arquivo é temporário.
+     * @return array{0:string,1:?string}|null [normal, negativo]
+     */
+    private static function preparar(string $path): ?array {
         // Dimensões lidas do cabeçalho ANTES de decodificar: um PNG de poucos KB pode declarar
         // 50.000 × 50.000 px e esgotar a memória dentro do imagecreatefromstring.
         $info = @getimagesize($path);
@@ -153,22 +153,32 @@ final class OcrImagem {
         if (!$im) return null;
         $w = imagesx($im); $h = imagesy($im);
         if ($w < 20 || $h < 20 || $w * $h > self::MAX_PIXELS) { imagedestroy($im); return null; }
+        // Fundo branco para PNG transparente, já em cores verdadeiras (imagem com paleta vira truecolor aqui).
+        $base = imagecreatetruecolor($w, $h);
+        imagefill($base, 0, 0, imagecolorallocate($base, 255, 255, 255));
+        imagecopy($base, $im, 0, 0, 0, 0, $w, $h);
+        imagedestroy($im);
+        imagefilter($base, IMG_FILTER_GRAYSCALE);
+        // Gama escurece os tons médios: letra amarela/laranja sobre fundo claro (comum em cartazes)
+        // deixa de ficar quase branca em tons de cinza, sem apagar o texto claro sobre fundo escuro.
+        imagegammacorrect($base, 2.2, 1.0);
         $f = max(1.0, min(3.0, self::LARGURA / $w));
         // A ampliação também tem teto (uma imagem estreita e muito alta seria ampliada 3×).
         $f = min($f, sqrt(self::MAX_PIXELS / ($w * $h)));
         $nw = (int)round($w * $f); $nh = (int)round($h * $f);
         $out = imagecreatetruecolor($nw, $nh);
-        imagefill($out, 0, 0, imagecolorallocate($out, 255, 255, 255)); // fundo branco para PNG transparente
-        imagecopyresampled($out, $im, 0, 0, 0, 0, $nw, $nh, $w, $h);
-        imagedestroy($im);
-        imagefilter($out, IMG_FILTER_GRAYSCALE);
-        // Gama escurece os tons médios: letra amarela/laranja sobre fundo claro (comum em cartazes)
-        // deixa de ficar quase branca em tons de cinza, sem apagar o texto claro sobre fundo escuro.
-        imagegammacorrect($out, 2.2, 1.0);
-        $tmp = rtrim(sys_get_temp_dir(), '\\/').DIRECTORY_SEPARATOR.'cvdf_ocr_'.bin2hex(random_bytes(6)).'.png';
-        $ok = imagepng($out, $tmp, 1); // compressão mínima: o arquivo é temporário
+        imagecopyresampled($out, $base, 0, 0, 0, 0, $nw, $nh, $w, $h);
+        imagedestroy($base);
+        $pasta = rtrim(sys_get_temp_dir(), '\/').DIRECTORY_SEPARATOR;
+        $tmp = $pasta.'cvdf_ocr_'.bin2hex(random_bytes(6)).'.png';
+        if (!imagepng($out, $tmp, 0)) { imagedestroy($out); return null; }
+        // Negativo (e menos contraste nos tons médios), feito da mesma imagem ampliada, sem reler o arquivo.
+        imagefilter($out, IMG_FILTER_NEGATE);
+        imagefilter($out, IMG_FILTER_CONTRAST, -40);
+        $neg = $pasta.'cvdf_ocr_neg_'.bin2hex(random_bytes(6)).'.png';
+        $okNeg = imagepng($out, $neg, 0);
         imagedestroy($out);
-        return $ok ? $tmp : null;
+        return [$tmp, $okNeg ? $neg : null];
     }
 
     /** "por" quando o português está instalado; senão o inglês (lê o alfabeto latino, sem acentos). */
@@ -179,6 +189,38 @@ final class OcrImagem {
             $idioma = preg_match('/^por\s*$/m', $lista) ? 'por' : 'eng';
         }
         return $idioma;
+    }
+
+    /**
+     * Várias leituras do Tesseract em paralelo: cada processo grava o TSV num arquivo temporário (sem risco de
+     * travar em pipe cheio) e usa 1 thread (OMP_THREAD_LIMIT=1), para os processos não disputarem a CPU.
+     * Tempo máximo de 90 s; o que não terminou é encerrado. Retorna os TSVs na ordem dos trabalhos ('' = falhou).
+     * @param list<array{0:string,1:int}> $trabalhos [imagem, psm]
+     * @return list<string>
+     */
+    private static function tsvParalelo(string $cmd, array $trabalhos, string $idioma): array {
+        if (!function_exists('proc_open')) return array_fill(0, count($trabalhos), '');
+        $env = array_merge(getenv() ?: [], ['OMP_THREAD_LIMIT' => '1']);
+        $procs = []; $bases = [];
+        foreach ($trabalhos as $i => [$png, $psm]) {
+            $bases[$i] = rtrim(sys_get_temp_dir(), '\\/').DIRECTORY_SEPARATOR.'cvdf_ocr_tsv_'.bin2hex(random_bytes(6));
+            $nulo = DIRECTORY_SEPARATOR === '\\' ? 'NUL' : '/dev/null';
+            $p = @proc_open([$cmd, $png, $bases[$i], '-l', $idioma, '--psm', (string)$psm, 'tsv'], [0 => ['file', $nulo, 'r'], 1 => ['file', $nulo, 'w'], 2 => ['file', $nulo, 'w']], $pipes, null, $env);
+            if (is_resource($p)) $procs[$i] = $p;
+        }
+        $limite = microtime(true) + 90;
+        while ($procs && microtime(true) < $limite) {
+            foreach ($procs as $i => $p) if (!proc_get_status($p)['running']) { proc_close($p); unset($procs[$i]); }
+            if ($procs) usleep(100_000);
+        }
+        foreach ($procs as $p) { @proc_terminate($p); @proc_close($p); }   // passou do tempo
+        $out = [];
+        foreach (array_keys($trabalhos) as $i) {
+            $arq = $bases[$i].'.tsv';
+            $out[$i] = is_file($arq) ? (string)file_get_contents($arq) : '';
+            @unlink($arq);
+        }
+        return $out;
     }
 
     private static function tsv(string $cmd, string $png, int $psm, string $idioma): string {

@@ -61,6 +61,7 @@ final class Competencias {
 
         // Serviços
         'Serviços domésticos e limpeza' => ['diaristas','zelador','zeladora','copeira','copeiro','camareiro','camareira','auxiliar de limpeza','agente de limpeza','higienizacao','domestica','empregada domestica','diarista','limpeza','faxina','servicos gerais','rotina domestica','passar roupa','zeladoria'],
+        'Jardinagem e áreas verdes' => ['jardinagem','jardineiro','jardineira','rocadeira','rocada','rocagem','rocador','capina','capinador','poda','podador','paisagismo','areas verdes','maquina costal','manutencao de areas verdes','soprador'],
         'Cozinha e alimentação' => ['garcom','garconete','churrasqueiro','pizzaiolo','cumim','confeiteiro','confeiteira','padeiro','salgadeiro','auxiliar de pizzaria','self service','buffet','cozinha industrial','cozinha','cozinheiro','cozinheira','auxiliar de cozinha','alimentacao','lanchonete','fast food','manipulacao de alimentos','restaurante','chapeiro','mcdonald s','mcdonalds'],
         'Motorista e CNH' => ['caminhao','cnh c','cnh categoria c','cnh a','cnh categoria a','motorista','cnh','carteira de habilitacao','habilitacao','cnh b','cnh d','cnh ab'],
         'Educação' => ['professor','professora','docente','pedagogia','pedagogo','pedagoga','monitor escolar','auxiliar de classe'],
