@@ -2,7 +2,7 @@
 /**
  * Cabeçalho do layout: <head>, menu principal e a mensagem "flash".
  * Incluído por View::render() antes de cada tela. Usa, se a ação definir:
- * $title, $layoutLargo (faixas com a largura toda), $descricaoPagina, $ogImagem e $ptMenuEbook.
+ * $title, $layoutLargo (faixas com a largura toda), $descricaoPagina, $ogImagem e $ptMenuTipo (curso/ebook/video).
  */
 $flash = getFlash();
 
@@ -10,11 +10,13 @@ $flash = getFlash();
 $scriptAtual = '/'.Router::atual();
 $emPasta = fn(string $p) => str_contains($scriptAtual, '/'.$p.'/');
 $ehPagina = fn(string ...$nomes) => in_array(basename($scriptAtual), $nomes, true) && !$emPasta('admin') && !$emPasta('view');
-$ehEbook = ($ehPagina('cursos.php') && ($_GET['tipo'] ?? '') === 'ebook') || ($ehPagina('curso.php') && !empty($ptMenuEbook));
+// Formato da página de conteúdo (cursos.php?tipo= ou curso.php, que informa $ptMenuTipo): cursos acendem "Cursos";
+// e-books e vídeos (que ficam junto dos e-books, sem item próprio no menu) acendem "E-books".
+$tipoMenu = $ehPagina('cursos.php') ? (string)($_GET['tipo'] ?? '') : ($ehPagina('curso.php') ? (string)($ptMenuTipo ?? '') : null);
 $menu = [
     'vagas'   => $ehPagina('vagas.php', 'vaga.php', 'candidatar.php'),
-    'cursos'  => $ehPagina('cursos.php', 'curso.php') && !$ehEbook,
-    'ebooks'  => $ehEbook,
+    'cursos'  => $tipoMenu !== null && !in_array($tipoMenu, ['ebook', 'video'], true),
+    'ebooks'  => in_array($tipoMenu, ['ebook', 'video'], true),
     'cadastro'=> $ehPagina('cadastro.php'),
     'login'   => $ehPagina('login.php', 'esqueci_senha.php', 'redefinir_senha.php'),
     'perfil'  => ($emPasta('view/perfil') && basename($scriptAtual) !== 'portfolio.php') || $emPasta('admin'),
@@ -43,10 +45,10 @@ $ptDescricao = $descricaoPagina ?? 'Vagas de emprego, cursos e e-books gratuitos
 <?php if (!empty($ogImagem)): ?><meta property="og:image" content="<?=e(url((string)$ogImagem))?>"><?php endif; ?>
 <meta name="theme-color" content="#0b3a8f">
 <link rel="stylesheet" href="<?=url('assets/css/app.css')?>?v=5">
-<link rel="stylesheet" href="<?=url('assets/css/site.css')?>?v=10">
+<link rel="stylesheet" href="<?=url('assets/css/site.css')?>?v=14">
 <link rel="stylesheet" href="<?=url('assets/css/portfolio.css')?>?v=3">
 <link rel="stylesheet" href="<?=url('assets/css/anuncios.css')?>?v=1">
-<link rel="stylesheet" href="<?=url('assets/css/painel.css')?>?v=3">
+<link rel="stylesheet" href="<?=url('assets/css/painel.css')?>?v=4">
 </head><body class="cv">
 <a class="cv-pular" href="#conteudo">Pular para o conteúdo</a>
 <header class="cv-topo">

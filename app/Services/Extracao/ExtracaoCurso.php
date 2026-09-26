@@ -34,7 +34,7 @@ final class ExtracaoCurso {
         $n = Competencias::normalizar($texto);
         $linhas = array_values(array_filter(array_map(fn($l) => trim_u($l, " \t*_•·-–—>"), explode("\n", $texto)), fn($l) => $l !== ''));
 
-        if (preg_match('/https?:\/\/[^\s<>"\')]+/i', $texto, $m)) $r['url'] = rtrim($m[0], '.,;');
+        $r['url'] = self::primeiroLink($texto);
         foreach ($linhas as $l) {
             if (preg_match('/^(?:curso|t[ií]tulo|nome do curso)\s*:\s*(.+)$/iu', $l, $m)) { $r['titulo'] = trim($m[1]); break; }
         }
@@ -81,14 +81,53 @@ final class ExtracaoCurso {
         return $r;
     }
 
-    /** Capa padrão de cada área (as mesmas dos cursos que já vêm no site): o curso importado herda a da sua categoria. */
-    public const CAPAS = [
-        'Informática e Excel' => 'assets/img/cursos/curso1.png',
-        'Empreendedorismo e Gestão' => 'assets/img/cursos/curso2.png',
-        'Administração e Atendimento' => 'assets/img/cursos/curso3.png',
-        'Marketing, Dados e UX' => 'assets/img/cursos/curso4.png',
-        'Negócios, Finanças e ESG' => 'assets/img/cursos/curso5.png',
+    /** Áreas (categorias de curso) do database/seed.sql — usadas no prompt quando o banco ainda não tem categorias. */
+    public const AREAS = [
+        'Informática e Excel', 'Empreendedorismo e Gestão', 'Administração e Atendimento', 'Marketing, Dados e UX',
+        'Negócios, Finanças e ESG', 'Tecnologia e Inteligência Artificial', 'Carreira e Empregabilidade',
     ];
+
+    /**
+     * As capas de public/assets/img/cursos são banners COM A MARCA da instituição (Fundação Bradesco, SEBRAE,
+     * Escola Virtual Gov, Google, FGV). Por isso a capa segue a instituição, nunca a área: um e-book do
+     * Banco Central não pode sair com o banner da FGV. Instituição sem banner → sem capa (o cartão mostra o
+     * ícone do formato). A ordem importa: "Fundação Bradesco – Escola Virtual" é Bradesco, não a Escola Virtual Gov.
+     */
+    private const CAPAS_INSTITUICAO = [
+        'bradesco|ev org br' => 'assets/img/cursos/curso1.png',
+        'sebrae' => 'assets/img/cursos/capas/sebrae.jpg',   // imagem oficial do SEBRAE (a curso2.png tinha marca d'água de outro site)
+        'escola virtual gov|escola virtual do governo|escolavirtual gov|enap|evg' => 'assets/img/cursos/curso3.png',
+        'google' => 'assets/img/cursos/curso4.png',
+        'fgv' => 'assets/img/cursos/curso5.png',
+    ];
+
+    /** Capa com a marca da instituição (ou '' quando não há banner dela). Os banners anunciam "cursos": e-book e vídeo ficam com a capa do formato. */
+    public static function capa(string $instituicao, string $url = '', string $tipo = 'curso'): string {
+        if ($tipo !== 'curso') return '';
+        $busca = ' '.Competencias::normalizar($instituicao).' ';
+        $link = ' '.Competencias::normalizar(preg_replace('#^https?://(www\.)?#i', '', $url) ?? '').' ';
+        foreach (self::CAPAS_INSTITUICAO as $chaves => $img) {
+            foreach (explode('|', $chaves) as $c) if (str_contains($busca, ' '.$c.' ') || str_contains($link, ' '.$c.' ')) return $img;
+        }
+        return '';
+    }
+
+    /**
+     * Primeiro link http(s) do texto. Aceita parênteses no endereço quando estão em par
+     * (ex.: ".../Cartilha%20(2)%20(1).pdf" — antes o link era cortado no primeiro ")" e ficava quebrado),
+     * mas não leva junto o ")" de quem escreveu o link entre parênteses nem a pontuação do fim da frase.
+     */
+    public static function primeiroLink(string $texto): string {
+        if (!preg_match('/https?:\/\/[^\s<>"\'\]]+/i', $texto, $m)) return '';
+        $u = $m[0];
+        while ($u !== '') {
+            $ultimo = substr($u, -1);
+            if (strpbrk($ultimo, '.,;:!?') !== false) { $u = substr($u, 0, -1); continue; }
+            if ($ultimo === ')' && substr_count($u, '(') < substr_count($u, ')')) { $u = substr($u, 0, -1); continue; }
+            break;
+        }
+        return $u;
+    }
 
     /** Rótulos aceitos nas fichas (com ou sem acento, maiúsculas ou não) → campo. */
     private const ROTULOS = [
@@ -104,6 +143,7 @@ final class ExtracaoCurso {
         'url' => 'link|link oficial|url|site|endereco',
         'categoria' => 'area|categoria',
         'descricao' => 'descricao|resumo|sobre',
+        'imagem' => 'imagem|imagem da capa|imagem de capa|capa|link da imagem|url da imagem|foto|banner',
     ];
 
     /**
@@ -117,7 +157,8 @@ final class ExtracaoCurso {
         $texto = trim(str_replace(["\r\n", "\r"], "\n", $texto));
         if ($texto === '') return [];
         // Tira a formatação de Markdown que as IAs costumam usar (negrito, títulos, listas, links [texto](url)).
-        $texto = preg_replace(['/\*\*|__/u', '/^\s*#{1,6}\s*/mu', '/\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)/u', '/\[\d+\]/u'], ['', '', '$2', ''], $texto) ?? $texto;
+        // O link do Markdown pode ter parênteses em par no endereço: [pdf](https://site/arquivo%20(2).pdf).
+        $texto = preg_replace(['/\*\*|__/u', '/^\s*#{1,6}\s*/mu', '/\[([^\]]*)\]\((https?:\/\/(?:[^()\s]|\([^()\s]*\))+)\)/u', '/\[\d+\]/u'], ['', '', '$2', ''], $texto) ?? $texto;
         $blocos = preg_split('/^\s*(?:-{3,}|={3,}|_{3,})\s*$/mu', $texto) ?: [];
         if (count($blocos) === 1) $blocos = preg_split('/\n(?=\s*(?:\d+[.)]\s*)?t[ií]tulo\s*:)/iu', $texto) ?: [$texto];
         $out = [];
@@ -153,7 +194,7 @@ final class ExtracaoCurso {
         $n = fn(string $k) => Competencias::normalizar($c[$k] ?? '');
         if (($c['titulo'] ?? '') !== '') $r['titulo'] = mb_substr(trim($c['titulo'], ' "\''), 0, 255);
         if (($c['instituicao'] ?? '') !== '') $r['instituicao'] = mb_substr($c['instituicao'], 0, 255);
-        if (preg_match('/https?:\/\/[^\s<>"\')\]]+/i', $c['url'] ?? '', $m)) $r['url'] = rtrim($m[0], '.,;');
+        if (($link = self::primeiroLink($c['url'] ?? '')) !== '') $r['url'] = $link;
         if ($n('tipo') !== '') $r['tipo'] = preg_match('/e ?book|livro|apostila|guia|pdf/', $n('tipo')) ? 'ebook' : (preg_match('/video|webinar|aula gravada/', $n('tipo')) ? 'video' : 'curso');
         if ($n('modalidade') !== '') $r['modalidade'] = preg_match('/hibrid|semipresencial/', $n('modalidade')) ? 'hibrido' : (preg_match('/^presencial/', $n('modalidade')) ? 'presencial' : 'ead');
         if ($n('nivel') !== '') $r['nivel'] = preg_match('/avanc/', $n('nivel')) ? 'avancado' : (preg_match('/intermed/', $n('nivel')) ? 'intermediario' : 'iniciante');
@@ -172,7 +213,9 @@ final class ExtracaoCurso {
         $r['categoria'] = '';
         foreach ($categorias as $cat) if (Competencias::normalizar($cat) === $n('categoria')) $r['categoria'] = $cat;
         if ($r['categoria'] === '') $r['categoria'] = self::categoria($r['competencias']);
-        $r['imagem'] = self::CAPAS[$r['categoria']] ?? 'assets/img/cursos/curso1.png';
+        $r['imagem'] = self::capa($r['instituicao'], $r['url'], $r['tipo']);   // banner da instituição (reserva)
+        // Imagem que a pesquisa trouxe (capa do e-book / imagem do curso): só o link; baixa ao cadastrar (ImagemRemota).
+        $r['imagem_url'] = self::primeiroLink($c['imagem'] ?? '');
         return $r;
     }
 
@@ -181,7 +224,7 @@ final class ExtracaoCurso {
      * no formato de ficha que fichas() lê. Usa as categorias de curso cadastradas no sistema.
      */
     public static function promptPesquisa(array $categorias, int $quantidade = 20): string {
-        $areas = $categorias ? implode(' | ', $categorias) : implode(' | ', array_keys(self::CAPAS));
+        $areas = $categorias ? implode(' | ', $categorias) : implode(' | ', self::AREAS);
         return <<<TXT
 Você é um pesquisador de oportunidades de capacitação profissional para uma plataforma de empregos do Distrito Federal (Brasil) chamada Conecta Vagas DF. O público são pessoas que procuram emprego, muitas no primeiro emprego.
 
@@ -191,7 +234,8 @@ REGRAS:
 1. Só use fontes oficiais (site da instituição) e confira que o link abre a página do curso ou do e-book — não invente links.
 2. Prefira instituições conhecidas: Fundação Bradesco (Escola Virtual), Escola Virtual.Gov (ENAP), SEBRAE, SENAI, SENAC, SESI, IFB, Google (Grow), Microsoft Learn, FGV, Fundação Estudar, Cisco.
 3. Não repita cursos. Descrição curta e objetiva, sem propaganda.
-4. Responda SOMENTE com as fichas abaixo, sem introdução, sem conclusão, sem tabela e sem negrito. Separe cada ficha com uma linha contendo apenas ---
+4. IMAGEM (obrigatória — sem ela o item não é cadastrado): informe o endereço DIRETO de uma imagem oficial que identifique o item, terminando em .jpg, .jpeg, .png ou .webp. No e-book, a imagem da CAPA (miniatura da capa na página de download); no curso, a imagem de divulgação da página do próprio curso. Nunca use logotipo genérico, ícone ou imagem de outro site. Se não encontrar, escreva: Não encontrada.
+5. Responda SOMENTE com as fichas abaixo, sem introdução, sem conclusão, sem tabela e sem negrito. Separe cada ficha com uma linha contendo apenas ---
 
 FORMATO DE CADA FICHA (copie os rótulos exatamente assim):
 Título: nome oficial do curso ou e-book
@@ -205,6 +249,7 @@ Gratuito: Sim | Não
 Preço: ex.: R\$ 49,90 (só se não for gratuito)
 Área: uma destas: {$areas}
 Link: endereço oficial completo, começando com https://
+Imagem: endereço direto da imagem da capa (e-book) ou da imagem do curso, começando com https://
 Descrição: 1 ou 2 frases dizendo o que a pessoa aprende e se tem certificado
 ---
 TXT;

@@ -1,32 +1,42 @@
 <?php
 /**
- * Cursos, e-books (?tipo=ebook) e vídeos (rota cursos.php): abas por formato, filtros,
- * "Recomendados para você" (candidato) e grade de cartões.
- * Recebe de CursoController::lista(): $tipo, $filtros, $cursos, $categorias, $porTipo, $total, $recomendados,
- * $faltantesTop, $tituloPag, $subPag, $abaUrl e $dbErro.
+ * Cursos (rota cursos.php), e-books (?tipo=ebook) e vídeos (?tipo=video) — cada formato na sua página,
+ * sem misturar: abas por formato, filtros, "Recomendados para você" (candidato) e grade de cartões.
+ * Recebe de CursoController::lista(): $tipo, $filtros, $cursos, $categorias, $porTipo, $recomendados,
+ * $faltantesTop, $tituloPag, $subPag, $nomeFormato, $abaUrl, $limparUrl, $dbErro
+ * e a paginação ($encontrados, $pagina, $paginas, $porPagina, $qs).
  */
 ?>
-<?=cv_faixa($tituloPag, $subPag, $tipo === '' ? ['Cursos' => ''] : ['Cursos' => url('cursos.php'), $tituloPag => ''])?>
+<?=cv_faixa($tituloPag, $subPag, [pt_secao_formato($tipo)[0] => ''])?>
 
 <div class="cv-wrap">
   <?php if ($dbErro): ?>
-    <div class="alert erro" style="margin-top:16px"><b>Não foi possível carregar os cursos.</b> Verifique se o MySQL está ligado e se o banco <code><?=e(DB_NAME)?></code> foi importado.<br><small><?=e($dbErro)?></small></div>
+    <div class="alert erro" style="margin-top:16px"><b>Não foi possível carregar os <?=e($nomeFormato)?>.</b> Verifique se o MySQL está ligado e se o banco <code><?=e(DB_NAME)?></code> foi importado.<br><small><?=e($dbErro)?></small></div>
   <?php endif; ?>
 
-  <form class="cv-filtros" method="get" role="search" aria-label="Buscar cursos" style="grid-template-columns:2fr 1.3fr 1fr auto">
-    <?php if ($tipo !== ''): ?><input type="hidden" name="tipo" value="<?=e($tipo)?>"><?php endif; ?>
-    <input name="q" placeholder="Curso, tema ou instituição" value="<?=e($filtros['q'])?>" aria-label="Curso, tema ou instituição">
+  <?php $rotuloBusca = ['curso' => 'Curso', 'ebook' => 'E-book', 'video' => 'Vídeo'][$tipo].', tema ou instituição'; ?>
+  <form class="cv-filtros cv-filtros-cursos" method="get" role="search" aria-label="Buscar <?=e($nomeFormato)?>">
+    <?php if ($tipo !== 'curso'): ?><input type="hidden" name="tipo" value="<?=e($tipo)?>"><?php endif; ?>
+    <input name="q" placeholder="<?=e($rotuloBusca)?>" value="<?=e($filtros['q'])?>" aria-label="<?=e($rotuloBusca)?>">
     <select name="categoria_id" aria-label="Área"><option value="">Todas as áreas</option><?php foreach ($categorias as $c): ?><option value="<?=(int)$c['id']?>" <?=$filtros['categoria_id'] === (int)$c['id'] ? 'selected' : ''?>><?=e($c['nome'])?></option><?php endforeach; ?></select>
     <select name="gratuito" aria-label="Preço"><option value="">Gratuitos e pagos</option><option value="1" <?=$filtros['gratuito'] === '1' ? 'selected' : ''?>>Só gratuitos</option></select>
     <button class="cv-btn cv-btn-azul"><?=icone('busca', 16)?>Buscar</button>
   </form>
 
   <nav class="cv-abas" aria-label="Formato">
-    <a href="<?=$abaUrl('')?>" class="<?=$tipo === '' ? 'ativo' : ''?>">Todos <small>(<?=$total?>)</small></a>
-    <a href="<?=$abaUrl('curso')?>" class="<?=$tipo === 'curso' ? 'ativo' : ''?>">Cursos <small>(<?=$porTipo['curso'] ?? 0?>)</small></a>
-    <a href="<?=$abaUrl('ebook')?>" class="<?=$tipo === 'ebook' ? 'ativo' : ''?>">E-books <small>(<?=$porTipo['ebook'] ?? 0?>)</small></a>
-    <a href="<?=$abaUrl('video')?>" class="<?=$tipo === 'video' ? 'ativo' : ''?>">Vídeos <small>(<?=$porTipo['video'] ?? 0?>)</small></a>
+    <?php foreach (CursoDAO::TIPOS as $t): if ($t === 'video' && !$porTipo['video'] && $tipo !== 'video') continue; // Vídeos: só quando houver ?>
+      <a href="<?=e($abaUrl($t))?>"<?=$tipo === $t ? ' class="ativo" aria-current="page"' : ''?>><?=icone(pt_secao_formato($t)[2], 14)?> <?=e(pt_secao_formato($t)[0])?> <small>(<?=(int)$porTipo[$t]?>)</small></a>
+    <?php endforeach; ?>
   </nav>
+
+  <?php if (count($atalhosArea) > 1 || $filtros['categoria_id']): // atalhos de área: filtrar com um clique ?>
+    <nav class="cv-areas" aria-label="Áreas">
+      <a href="<?=e($linkLista($tipo, ['categoria_id' => '']))?>"<?=!$filtros['categoria_id'] ? ' class="ativo" aria-current="true"' : ''?>>Todas as áreas</a>
+      <?php foreach ($atalhosArea as $a): $aid = (int)$a['id']; ?>
+        <a href="<?=e($linkLista($tipo, ['categoria_id' => $aid]))?>"<?=$filtros['categoria_id'] === $aid ? ' class="ativo" aria-current="true"' : ''?>><?=e($a['nome'])?> <small><?=(int)$porArea[$aid]?></small></a>
+      <?php endforeach; ?>
+    </nav>
+  <?php endif; ?>
 
   <?php if ($recomendados): ?>
     <div class="cv-recomendados">
@@ -40,12 +50,31 @@
     </div>
   <?php endif; ?>
 
-  <div class="cv-barra"><span><b><?=count($cursos)?></b> conteúdo(s)<?=array_filter($filtros) ? ' · <a href="'.e(url('cursos.php'.($tipo ? '?tipo='.$tipo : ''))).'">limpar filtros</a>' : ''?></span></div>
+  <?php $primeiro = $encontrados ? ($pagina - 1) * $porPagina + 1 : 0; $ultimo = min($encontrados, $pagina * $porPagina); ?>
+  <?php $unidade = $encontrados === 1 ? ['curso' => 'curso', 'ebook' => 'e-book', 'video' => 'vídeo'][$tipo] : $nomeFormato; ?>
+  <div class="cv-barra"><span><b><?=$encontrados?></b> <?=e($unidade)?><?=$paginas > 1 ? ' · mostrando '.$primeiro.'–'.$ultimo : ''?><?=array_filter($filtros) ? ' · <a href="'.e($limparUrl).'">limpar filtros</a>' : ''?></span></div>
 
   <?php if ($cursos): ?>
     <div class="cv-grade"><?php foreach ($cursos as $c): ?><?=cv_card_curso($c)?><?php endforeach; ?></div>
+    <?php if ($paginas > 1): ?>
+      <nav class="an-paginacao" aria-label="Páginas de resultados">
+        <?php if ($pagina > 1): ?><a class="an-pag-seta" href="<?=$qs(['pagina' => $pagina - 1])?>" rel="prev">‹ Anterior</a><?php else: ?><span class="an-pag-seta" aria-disabled="true">‹ Anterior</span><?php endif; ?>
+        <?php $antes = 0; for ($n = 1; $n <= $paginas; $n++):
+          if ($n !== 1 && $n !== $paginas && abs($n - $pagina) > 1) { if ($antes !== -1) echo '<span class="an-pag-reticencias" aria-hidden="true">…</span>'; $antes = -1; continue; }
+          $antes = $n; ?>
+          <?php if ($n === $pagina): ?><span class="an-pag-num ativo" aria-current="page"><span class="sr-only">Página </span><?=$n?></span>
+          <?php else: ?><a class="an-pag-num" href="<?=$qs(['pagina' => $n])?>"><span class="sr-only">Página </span><?=$n?></a><?php endif; ?>
+        <?php endfor; ?>
+        <?php if ($pagina < $paginas): ?><a class="an-pag-seta" href="<?=$qs(['pagina' => $pagina + 1])?>" rel="next">Próxima ›</a><?php else: ?><span class="an-pag-seta" aria-disabled="true">Próxima ›</span><?php endif; ?>
+      </nav>
+    <?php endif; ?>
   <?php elseif (!$dbErro): ?>
-    <div class="empty"><?=$tipo === 'ebook' ? 'Nenhum e-book publicado ainda. Em breve, novos materiais por aqui.' : 'Nenhum conteúdo encontrado com esses filtros.'?> <a href="<?=url('cursos.php')?>">Ver todos os cursos</a></div>
+    <?php if (array_filter($filtros)): ?>
+      <div class="empty">Nenhum <?=e(['curso' => 'curso', 'ebook' => 'e-book', 'video' => 'vídeo'][$tipo])?> encontrado com esses filtros. <a href="<?=e($limparUrl)?>">Limpar filtros</a></div>
+    <?php else: ?>
+      <div class="empty"><?=['curso' => 'Nenhum curso publicado ainda.', 'ebook' => 'Nenhum e-book publicado ainda.', 'video' => 'Nenhum vídeo publicado ainda.'][$tipo]?> Em breve, novos conteúdos por aqui.
+        <?php if ($tipo !== 'curso'): ?><a href="<?=url('cursos.php')?>">Ver os cursos</a><?php endif; ?></div>
+    <?php endif; ?>
   <?php endif; ?>
   <div style="height:28px"></div>
 </div>

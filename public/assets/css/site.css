@@ -166,11 +166,19 @@ body.cv .progress{border-radius:3px}
 /* ---------- Listagens: filtros, abas e barra de resultado ---------- */
 .cv-filtros{display:grid;grid-template-columns:2fr 1.2fr 1.3fr 1fr 1fr auto;gap:10px;margin:18px 0 12px;padding:12px;background:#fff;border:1px solid var(--cv-linha);border-radius:var(--cv-raio)}
 .cv-filtros input,.cv-filtros select{margin:0;padding:9px 10px;font-size:14px}
+.cv-filtros-cursos{grid-template-columns:2fr 1.3fr 1fr auto}   /* busca, área, preço, botão (os @media abaixo empilham) */
 .cv-abas{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px}
 .cv-abas a{padding:6px 12px;border:1px solid var(--cv-linha);border-radius:4px;background:#fff;color:var(--cv-texto);font-size:13.5px;font-weight:600;text-decoration:none}
 .cv-abas a:hover{border-color:var(--cv-azul);color:var(--cv-azul)}
 .cv-abas a.ativo{background:var(--cv-azul);border-color:var(--cv-azul);color:#fff}
 .cv-abas small{opacity:.75;font-weight:500}
+/* Atalhos de área (cursos/e-books/vídeos): pílulas; no celular rolam de lado numa linha só */
+.cv-areas{display:flex;flex-wrap:wrap;gap:6px;margin:-4px 0 14px}
+.cv-areas a{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border:1px solid var(--cv-linha);border-radius:999px;background:var(--cv-fundo,#f4f6f9);color:var(--cv-texto);font-size:13px;font-weight:600;text-decoration:none;white-space:nowrap}
+.cv-areas a:hover{border-color:var(--cv-azul);color:var(--cv-azul)}
+.cv-areas a.ativo{background:var(--cv-azul-claro,#e8f0ff);border-color:var(--cv-azul);color:var(--cv-azul)}
+.cv-areas small{display:inline-grid;place-items:center;min-width:20px;height:18px;padding:0 5px;border-radius:9px;background:#fff;font-size:11.5px;font-weight:700}
+@media (max-width:640px){.cv-areas{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}}
 .cv-barra{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;margin:0 0 14px;font-size:14px;color:var(--cv-cinza)}
 .cv-barra b{color:var(--cv-tinta)}
 .cv-recomendados{margin:0 0 18px;padding:14px 16px;border:1px solid #bcd3f5;border-left:4px solid var(--cv-azul);border-radius:var(--cv-raio);background:#f5f9ff}
@@ -322,6 +330,9 @@ body.cv .cv-faixa h1,body.cv .cv-hero h1,body.cv .profile-head h1,body.cv .pf-ba
 .cv-card-img img{display:block;width:100%;height:100%;object-fit:contain}
 .cv-card-curso .cv-card-img{aspect-ratio:16/9}
 .cv-card-curso .cv-card-img img{object-fit:cover}
+/* E-book: capa em pé, inteira (sem cortar) */
+.cv-card-ebook .cv-card-img{aspect-ratio:3/4}
+.cv-card-ebook .cv-card-img img{object-fit:contain}
 .cv-img-vazia{display:grid;place-items:center;width:100%;height:100%;color:#fff;background:linear-gradient(135deg,var(--cv-azul-esc),var(--cv-azul))}
 .cv-card-corpo{padding:10px 12px 4px}
 .cv-chapeu{font-size:10.5px;margin-bottom:4px}
@@ -335,6 +346,7 @@ body.cv .cv-faixa h1,body.cv .cv-hero h1,body.cv .profile-head h1,body.cv .pf-ba
 /* Detalhe da vaga/curso: imagem limpa, sem fundo desfocado */
 .pt-midia{background:#f3f5f8}
 .pt-midia::before{display:none}
+.pt-midia.pt-midia-vazia{background:linear-gradient(135deg,var(--cv-azul-esc),var(--cv-azul))}   /* sem capa: mesmo azul do cartão */
 
 /* Faixa de assinaturas (meio da página inicial) */
 .cv-assinaturas{background:var(--cv-fundo);border-top:1px solid var(--cv-linha);border-bottom:1px solid var(--cv-linha)}

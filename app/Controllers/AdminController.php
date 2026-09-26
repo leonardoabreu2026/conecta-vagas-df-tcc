@@ -185,43 +185,56 @@ final class AdminController extends Controller {
             }
 
             // IMPORTAÇÃO EM LOTE (resposta do prompt de pesquisa): 1) ler as fichas e mostrar a prévia; 2) cadastrar as marcadas.
+            // Padrão da plataforma: título, link oficial e IMAGEM (capa do e-book / imagem do curso) — sem imagem, não entra.
             if ($acao === 'importar_ler') {
+                set_time_limit(300);   // confere as imagens na internet
                 $nomesCat = array_column($cats, 'nome');
-                $itens = ExtracaoCurso::fichas(post_str('texto_lote'), $nomesCat);
+                $itens = ImagemRemota::completar(array_slice(ExtracaoCurso::fichas(post_str('texto_lote'), $nomesCat), 0, 100));
                 foreach ($itens as &$it) {
                     $it['problemas'] = [];
                     if ($it['titulo'] === '') $it['problemas'][] = 'sem título';
                     if (!url_http_valida($it['url'])) $it['problemas'][] = 'sem link válido';
+                    if ($it['imagem_url'] === '' && $it['imagem'] === '') $it['problemas'][] = 'sem imagem';
                     $rep = $dao->buscarRepetido($it['url'], $it['titulo'], $it['instituicao']);
                     if ($rep) $it['problemas'][] = 'já cadastrado (#'.(int)$rep['id'].')';
                     $it['alerta'] = !$it['gratuito'] && !$it['preco'] ? 'pago sem preço: entra como gratuito, revise depois' : '';
                 }
                 unset($it);
-                $_SESSION['import_cursos'] = array_slice($itens, 0, 100);
+                $_SESSION['import_cursos'] = $itens;
                 flash($itens ? 'info' : 'erro', $itens ? count($itens).' ficha(s) lida(s). Confira a prévia abaixo e cadastre as marcadas.' : 'Nenhuma ficha encontrada. Cole a resposta completa da pesquisa (fichas com "Título:" e "Link:", separadas por ---).');
                 redirect('admin/pages/cursos.php#importar');
             }
             if ($acao === 'importar_salvar') {
+                set_time_limit(300);   // baixa as imagens
                 $itens = (array)($_SESSION['import_cursos'] ?? []);
                 $marcados = array_map('intval', array_filter((array)($_POST['itens'] ?? []), 'is_scalar'));
                 $catPorNome = array_column($cats, 'id', 'nome');
-                $ok = 0; $pulados = 0;
+                // Mesmas regras do formulário: título, link http(s), sem repetir.
+                $validos = [];
                 foreach ($marcados as $i) {
                     $it = $itens[$i] ?? null;
-                    // Mesmas regras do formulário: título, link http(s), sem repetir.
-                    if (!$it || $it['titulo'] === '' || !url_http_valida($it['url']) || $dao->buscarRepetido($it['url'], $it['titulo'], $it['instituicao'])) { $pulados++; continue; }
+                    if ($it && $it['titulo'] !== '' && url_http_valida($it['url']) && !$dao->buscarRepetido($it['url'], $it['titulo'], $it['instituicao'])) $validos[] = $it;
+                }
+                // Imagem de cada um: a da pesquisa/página (baixada para storage/uploads) ou, na falta, o banner da instituição.
+                $baixadas = ImagemRemota::baixar(array_map(fn($it) => (string)($it['imagem_url'] ?? ''), $validos), 'curso');
+                $ok = 0; $pulados = count($marcados) - count($validos);
+                foreach ($validos as $it) {
+                    $imagem = $baixadas[$it['imagem_url'] ?? ''] ?? caminho_imagem_valido((string)$it['imagem']);
+                    // Fora do padrão (sem imagem) ou repetido dentro do próprio lote: não entra.
+                    if ($imagem === '' || $dao->buscarRepetido($it['url'], $it['titulo'], $it['instituicao'])) { $pulados++; continue; }
                     $d = [
                         'categoria_id' => $catPorNome[$it['categoria']] ?? null, 'titulo' => mb_substr($it['titulo'], 0, 255), 'descricao' => (string)$it['descricao'],
                         'tipo' => enum_val($it['tipo'], CursoDAO::TIPOS, 'curso'), 'modalidade' => enum_val($it['modalidade'], CursoDAO::MODALIDADES, 'ead'),
                         'nivel' => enum_val($it['nivel'], CursoDAO::NIVEIS, 'iniciante'), 'duracao' => mb_substr((string)$it['duracao'], 0, 50),
                         'gratuito' => (int)$it['gratuito'] ? 1 : 0, 'preco' => (int)$it['gratuito'] ? null : $it['preco'], 'url' => mb_substr($it['url'], 0, 500),
-                        'imagem' => caminho_imagem_valido((string)$it['imagem']), 'instituicao' => mb_substr((string)$it['instituicao'], 0, 255), 'ativo' => 1,
+                        'imagem' => $imagem, 'instituicao' => mb_substr((string)$it['instituicao'], 0, 255), 'ativo' => 1,
                     ];
                     if (!$d['gratuito'] && ($d['preco'] === null || $d['preco'] <= 0)) { $d['gratuito'] = 1; $d['preco'] = null; } // pago sem preço: publica como gratuito para revisar
                     $dao->salvar($d) ? $ok++ : $pulados++;
                 }
+                foreach ($baixadas as $img) apagar_upload_sem_uso($img);   // imagem baixada de item que acabou não entrando
                 unset($_SESSION['import_cursos']);
-                flash($ok ? 'ok' : 'erro', $ok ? "{$ok} conteúdo(s) cadastrado(s) e publicado(s)".($pulados ? "; {$pulados} pulado(s) (sem link, sem título ou repetido)." : '.') : 'Nenhum conteúdo cadastrado. Marque as fichas que quer importar.');
+                flash($ok ? 'ok' : 'erro', $ok ? "{$ok} conteúdo(s) cadastrado(s) e publicado(s), cada um com a sua imagem".($pulados ? "; {$pulados} pulado(s) (sem link, sem título, sem imagem ou repetido)." : '.') : 'Nenhum conteúdo cadastrado. Marque as fichas que quer importar (só entram as que têm imagem).');
                 redirect('admin/pages/cursos.php');
             }
             if ($acao === 'importar_cancelar') { unset($_SESSION['import_cursos']); redirect('admin/pages/cursos.php'); }
@@ -230,7 +243,7 @@ final class AdminController extends Controller {
                 // Extração de cursos: preenche o formulário para revisão, sem salvar.
                 $extraido = ExtracaoCurso::doTexto(post_str('texto_anuncio'));
                 $cat = $extraido['categoria'] ? $catDao->buscarPorNome($extraido['categoria'], 'curso') : null;
-                $form = $extraido + ['id' => $id, 'categoria_id' => $cat['id'] ?? null, 'imagem' => 'assets/img/cursos/curso1.png', 'ativo' => 1];
+                $form = $extraido + ['id' => $id, 'categoria_id' => $cat['id'] ?? null, 'imagem' => ExtracaoCurso::capa($extraido['instituicao'], $extraido['url'], $extraido['tipo']), 'ativo' => 1];
             } else {
                 $d = [
                     'categoria_id' => post_int('categoria_id') ?: null,
@@ -260,6 +273,8 @@ final class AdminController extends Controller {
                 $img = salvar_imagem_enviada('imagem_arquivo', 'curso');
                 if ($img === false) $erros[] = 'Imagem inválida (use JPG, PNG ou WEBP até 3 MB).';
                 elseif ($img !== null) $d['imagem'] = $img;
+                // Padrão da plataforma: todo curso, e-book e vídeo aparece com a sua imagem.
+                if ($img !== false && $d['imagem'] === '' && post_str('imagem') === '') $erros[] = 'Informe a imagem do conteúdo: escolha um caminho (ex.: a capa do e-book) ou envie uma imagem.';
                 if ($erros) {
                     if ($img) { apagar_upload_sem_uso($img); $d['imagem'] = $existente['imagem'] ?? ''; } // não deixa arquivo órfão
                     flash('erro', implode(' ', $erros));
@@ -274,7 +289,7 @@ final class AdminController extends Controller {
         }
 
         $edit = get_str('edit') !== '' ? $dao->buscar((int)get_str('edit')) : null;
-        $form ??= $edit ?? ['id' => 0, 'categoria_id' => null, 'titulo' => '', 'descricao' => '', 'tipo' => 'curso', 'modalidade' => 'ead', 'nivel' => 'iniciante', 'duracao' => '', 'gratuito' => 1, 'preco' => null, 'url' => '', 'imagem' => 'assets/img/cursos/curso1.png', 'instituicao' => '', 'ativo' => 1];
+        $form ??= $edit ?? ['id' => 0, 'categoria_id' => null, 'titulo' => '', 'descricao' => '', 'tipo' => 'curso', 'modalidade' => 'ead', 'nivel' => 'iniciante', 'duracao' => '', 'gratuito' => 1, 'preco' => null, 'url' => '', 'imagem' => '', 'instituicao' => '', 'ativo' => 1];
         // Filtros da lista (formato e busca) — no mesmo padrão da tela de usuários.
         $filtroTipo = enum_val(get_str('tipo'), CursoDAO::TIPOS, '');
         $busca = get_str('q');
@@ -282,7 +297,7 @@ final class AdminController extends Controller {
         $porTipo = array_count_values(array_column($todos, 'tipo'));
         $lista = $dao->listar(false, ['q' => $busca]);
         if ($filtroTipo !== '') $lista = array_values(array_filter($lista, fn($c) => $c['tipo'] === $filtroTipo));
-        $imagens = imagens_da_pasta('assets/img/cursos');
+        $imagens = array_merge(imagens_da_pasta('assets/img/cursos'), imagens_da_pasta('assets/img/cursos/capas'), imagens_da_pasta('assets/img/ebooks'));
         $promptPesquisa = ExtracaoCurso::promptPesquisa(array_column(array_filter($cats, fn($c) => (int)$c['ativo']), 'nome'));
         $importacao = (array)($_SESSION['import_cursos'] ?? []);
         $title = 'Cursos e e-books';

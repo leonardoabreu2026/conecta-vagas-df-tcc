@@ -272,3 +272,4 @@ body.cv .pn-talento h3{margin:10px 0 2px;font-size:16.5px;color:var(--gf-tinta)}
 .imp-passos form textarea{margin-top:8px}
 .imp-previa{margin-top:16px}
 .imp-previa .table td{vertical-align:top}
+.imp-miniatura{display:block;width:64px;height:48px;object-fit:cover;border:1px solid #dfe5ee;border-radius:4px;background:#eef2f7}

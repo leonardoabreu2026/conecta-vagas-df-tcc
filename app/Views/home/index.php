@@ -2,7 +2,7 @@
 /**
  * Página inicial (rota index.php): banner com busca, vagas, assinaturas, cursos e os painéis relâmpago
  * (quem somos, objetivo, missão, valores e planos) que aparecem de tempos em tempos no canto da tela.
- * Recebe de HomeController::index(): $dbErro, $slides, $creditos, $vagasCapa, $cursosCapa,
+ * Recebe de HomeController::index(): $dbErro, $slides, $creditos, $vagasCapa, $conteudosCapa (por formato),
  * $mapaMatch (% de match por vaga), $minhas (candidaturas do candidato) e $plano (assinatura ativa).
  */
 ?>
@@ -76,16 +76,26 @@
   </div>
 </section>
 
+<?php
+// Cursos, e-books e vídeos em seções separadas; e-books e vídeos só aparecem quando houver algum publicado.
+$secoesConteudo = [
+  'curso' => ['formatura', 'Cursos Gratuitos', 'Capacitação gratuita para aumentar o seu match com as vagas', 'Ver todos os cursos'],
+  'ebook' => ['ebooks', 'E-books', 'Guias e materiais para ler no seu ritmo', 'Ver todos os e-books'],
+  'video' => ['play', 'Vídeos', 'Aulas e conteúdos em vídeo para aprender na prática', 'Ver todos os vídeos'],
+];
+foreach ($secoesConteudo as $t => [$ic, $tit, $sub, $ver]):
+  if ($t !== 'curso' && !$conteudosCapa[$t]) continue; ?>
 <section class="cv-secao">
   <div class="cv-wrap">
-    <?=cv_titulo_secao('formatura', 'Cursos e E-books', 'Capacitação gratuita para aumentar o seu match com as vagas', url('cursos.php'), 'Ver todos os cursos')?>
-    <?php if ($cursosCapa): ?>
-      <div class="cv-grade"><?php foreach ($cursosCapa as $c): ?><?=cv_card_curso($c)?><?php endforeach; ?></div>
+    <?=cv_titulo_secao($ic, $tit, $sub, pt_secao_formato($t)[1], $ver)?>
+    <?php if ($conteudosCapa[$t]): ?>
+      <div class="cv-grade"><?php foreach ($conteudosCapa[$t] as $c): ?><?=cv_card_curso($c)?><?php endforeach; ?></div>
     <?php elseif (!$dbErro): ?>
       <div class="empty">Nenhum curso publicado ainda.</div>
     <?php endif; ?>
   </div>
 </section>
+<?php endforeach; ?>
 
 <?php
 // Painel relâmpago: um balão de ideia pequeno, no canto da tela, que troca de mensagem de tempos em tempos

@@ -1,9 +1,9 @@
 <?php
 /**
  * Página do curso / e-book / vídeo (rota curso.php?id=): capa, descrição, competências desenvolvidas,
- * ficha e botão de acesso; abaixo, vagas que pedem essas competências e outros cursos.
+ * ficha e botão de acesso; abaixo, vagas que pedem essas competências e outros conteúdos do mesmo formato.
  * Recebe de CursoController::detalhe(): $curso, $id, $competencias, $vagasQuePedem, $outros, $mapaMatch,
- * $faltaParaMim, $formato, $instituicao, $ext (link externo), $link e $abaTipo.
+ * $faltaParaMim, $formato, $secaoNome/$secaoUrl/$secaoIcone (página do formato), $instituicao, $ext (link externo), $link e $abaTipo.
  */
 ?>
 <?=cv_faixa($curso['titulo'], $instituicao.' · '.$formato.' · '.pt_preco($curso), $abaTipo + [$curso['titulo'] => ''])?>
@@ -11,7 +11,7 @@
 <div class="cv-wrap cv-detalhe">
   <article class="cv-principal">
     <div class="cv-det-topo">
-      <?=pt_midia($curso['imagem'] ?? '', 'Capa: '.$curso['titulo'], '', false, $curso['tipo'] === 'ebook' ? 'ebooks' : 'cursos')?>
+      <?=pt_midia($curso['imagem'] ?? '', 'Capa: '.$curso['titulo'], '', false, $secaoIcone)?>
       <div>
         <p class="cv-chapeu"><span><?=e($formato)?><?=$curso['categoria_nome'] ? ' · '.e($curso['categoria_nome']) : ''?></span></p>
         <?php if (empty($curso['ativo'])): ?><p class="alert erro" style="margin:0 0 8px">Conteúdo oculto — visível só para o administrador.</p><?php endif; ?>
@@ -73,7 +73,7 @@
 <?php if ($outros): ?>
 <section class="cv-secao">
   <div class="cv-wrap">
-    <?=cv_titulo_secao('formatura', 'Outros cursos e e-books', '', url('cursos.php'), 'Ver todos')?>
+    <?=cv_titulo_secao($secaoIcone, 'Outros '.mb_strtolower($secaoNome), '', $secaoUrl, 'Ver todos os '.mb_strtolower($secaoNome))?>
     <div class="cv-grade"><?php foreach ($outros as $c): ?><?=cv_card_curso($c)?><?php endforeach; ?></div>
   </div>
 </section>

@@ -62,7 +62,7 @@ View: layouts/header.php + vagas/lista.php + layouts/footer.php  ──► HTML
 |---|---|
 | `HomeController` | início (`index.php`), termo de privacidade (`contrato.php`) |
 | `VagaController` | lista de vagas (`vagas.php`), página da vaga (`vaga.php`) |
-| `CursoController` | lista de cursos/e-books (`cursos.php`), página do curso (`curso.php`) |
+| `CursoController` | listas separadas por formato: cursos (`cursos.php`), e-books (`?tipo=ebook`) e vídeos (`?tipo=video`); página do conteúdo (`curso.php`) |
 | `CandidaturaController` | candidatar-se (`candidatar.php`), cancelar candidatura |
 | `PlanosController` | planos e assinaturas (`planos.php`) |
 | `AuthController` | login, cadastro, sair |
@@ -208,7 +208,12 @@ carga horária, gratuito/preço, modalidade, nível, formato e categoria.
 2. cola-se a resposta inteira: `ExtracaoCurso::fichas()` limpa o Markdown, separa as fichas e passa cada uma pela
    extração normal (os campos rotulados têm prioridade); presencial guarda a cidade na descrição;
 3. a **prévia** mostra cada ficha como "Pronto", "Sem link válido" ou "Já cadastrado"; só as marcadas são gravadas,
-   publicadas e com a capa padrão da área (`ExtracaoCurso::CAPAS`).
+   publicadas e com o banner da instituição (`ExtracaoCurso::capa()` — as capas de `assets/img/cursos` levam a marca
+   da instituição, então nunca são escolhidas pela área; sem banner, o cartão mostra o ícone do formato).
+
+**Cursos, e-books e vídeos separados**: cada formato tem a sua página — `cursos.php` (só cursos), `cursos.php?tipo=ebook`
+(só e-books) e `cursos.php?tipo=video` (só vídeos) —, o seu item no menu, a sua seção na página inicial e, na página
+do conteúdo, "Outros" do mesmo formato (`pt_secao_formato()` em `partials/componentes.php`).
 
 Nada é gravado sem revisão: a extração de vagas e cursos só preenche o formulário (ou a prévia da importação).
 

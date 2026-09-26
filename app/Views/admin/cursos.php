@@ -13,7 +13,7 @@ $filtrosLista = ['tipo' => $filtroTipo, 'q' => $busca];
     <details class="extrator" id="importar" <?=$importacao ? 'open' : ''?>>
         <summary>Importar vários de uma vez: pesquise com IA (Perplexity, ChatGPT) e cole a resposta aqui</summary>
         <ol class="imp-passos">
-            <li><b>Copie o prompt</b> e cole no Perplexity. Ele pesquisa cursos e e-books reais e responde em fichas (título, tipo, instituição, modalidade, cidade, nível, carga horária, preço, área, link e descrição).
+            <li><b>Copie o prompt</b> e cole no Perplexity. Ele pesquisa cursos e e-books reais e responde em fichas no padrão da plataforma (título, tipo, instituição, modalidade, cidade, nível, carga horária, preço, área, link, <b>imagem</b> e descrição).
                 <div class="imp-prompt">
                     <label for="imp-prompt" class="sr-only">Prompt de pesquisa</label>
                     <textarea id="imp-prompt" rows="6" readonly><?=e($promptPesquisa)?></textarea>
@@ -28,16 +28,17 @@ $filtrosLista = ['tipo' => $filtroTipo, 'q' => $busca];
                     <div class="form-actions"><button class="btn btn-outline">Ler fichas</button></div>
                 </form>
             </li>
-            <li><b>Confira a prévia</b> e cadastre os marcados. Cada um entra publicado, com a capa padrão da sua área.</li>
+            <li><b>Confira a prévia</b> e cadastre os marcados. A máquina confere a imagem de cada ficha (capa do e-book ou imagem do curso); se faltar, usa a imagem de divulgação da página do conteúdo ou o banner da instituição. <b>Sem imagem, a ficha fica fora do padrão e não entra.</b></li>
         </ol>
         <?php if ($importacao): ?>
         <form method="post" class="imp-previa">
             <input type="hidden" name="csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="acao" value="importar_salvar">
             <div class="table-wrap"><table class="table">
-                <tr><th><span class="sr-only">Importar</span></th><th>Título</th><th>Tipo</th><th>Instituição</th><th>Modalidade</th><th>Área</th><th>Link</th><th>Situação</th></tr>
-                <?php foreach ($importacao as $i => $it): $ruim = !empty($it['problemas']); ?>
+                <tr><th><span class="sr-only">Importar</span></th><th>Imagem</th><th>Título</th><th>Tipo</th><th>Instituição</th><th>Modalidade</th><th>Área</th><th>Link</th><th>Situação</th></tr>
+                <?php foreach ($importacao as $i => $it): $ruim = !empty($it['problemas']); $miniatura = ($it['imagem_url'] ?? '') ?: ($it['imagem'] ? url($it['imagem']) : ''); ?>
                 <tr>
                     <td><input type="checkbox" name="itens[]" value="<?=(int)$i?>" id="imp-<?=(int)$i?>" <?=$ruim ? 'disabled' : 'checked'?> aria-label="Importar <?=e($it['titulo'])?>"></td>
+                    <td><?=$miniatura !== '' ? '<img class="imp-miniatura" src="'.e($miniatura).'" alt="" loading="lazy" referrerpolicy="no-referrer">' : '<span class="meta">—</span>'?></td>
                     <td><label for="imp-<?=(int)$i?>"><?=e($it['titulo'] ?: '—')?></label><?php if ($it['duracao'] !== ''): ?><br><small class="meta"><?=e($it['duracao'])?> · <?=e(rotulo($it['nivel']))?></small><?php endif; ?></td>
                     <td><?=e(rotulo($it['tipo']))?></td>
                     <td><?=e($it['instituicao'] ?: '—')?></td>

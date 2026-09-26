@@ -56,7 +56,8 @@ final class Competencias {
         // Obras e manutenção
         'Elétrica' => ['eletricista','eletrica','eletrica predial','instalacoes eletricas','nr10','nr 10','eletrotecnica'],
         'Hidráulica' => ['hidraulica','hidraulico','encanador','bombeiro hidraulico','instalacoes hidraulicas'],
-        'Construção civil' => ['obra','obras','construcao civil','pedreiro','servente de obra','canteiro de obras','construcao'],
+        // "construção" sozinha não entra: "a construção de um ambiente de trabalho positivo" não é obra.
+        'Construção civil' => ['obra','obras','construcao civil','pedreiro','servente de obra','canteiro de obras','construtora','ajudante de construcao','auxiliar de construcao'],
 
         // Serviços
         'Serviços domésticos e limpeza' => ['diaristas','zelador','zeladora','copeira','copeiro','camareiro','camareira','auxiliar de limpeza','agente de limpeza','higienizacao','domestica','empregada domestica','diarista','limpeza','faxina','servicos gerais','rotina domestica','passar roupa','zeladoria'],
@@ -80,7 +81,11 @@ final class Competencias {
     public const COMPORTAMENTAIS = ['Comunicação','Trabalho em equipe','Organização','Proatividade','Foco em resultados','Negociação'];
 
     /** Expressões que geram falso positivo e devem ser ignoradas antes da busca. */
-    private const RUIDO = ['dados pessoais','plano de saude','seguro saude','vale alimentacao','vale refeicao','auxilio alimentacao','cesta basica','day off','experiencia do usuario final'];
+    private const RUIDO = ['dados pessoais','plano de saude','seguro saude','vale alimentacao','vale refeicao','auxilio alimentacao','cesta basica','day off','experiencia do usuario final',
+        // descrições de cursos e e-books: "proteção de dados" não é análise de dados; "cobrança por consumo" e
+        // "retenção de profissionais" não são telemarketing (que continua valendo para "operador de cobrança" e "retenção").
+        'protecao de dados','protecao dos dados','vazamento de dados','cobranca por consumo','cobranca por uso','modelo de cobranca','modelos de cobranca',
+        'retencao de profissionais','retencao de talentos','retencao de pessoas','retencao de colaboradores','retencao de funcionarios'];
 
     /** Minúsculas, sem acento, apenas letras/números separados por um espaço. */
     public static function normalizar(string $s): string {
@@ -115,9 +120,13 @@ final class Competencias {
         return self::extrair(implode("\n", [$v['titulo'] ?? '', $v['descricao'] ?? '', $v['requisitos'] ?? '']));
     }
 
-    /** Competências ensinadas por um curso (título, descrição e categoria). */
+    /**
+     * Competências ensinadas por um curso: as do título e da descrição. A categoria só entra quando os dois não
+     * dizem nada — o nome da área junta vários temas ("Marketing, Dados e UX") e daria a todo curso dela
+     * competências que ele não ensina (ex.: "UX e design" para um curso de Power BI).
+     */
     public static function doCurso(array $c): array {
-        return self::extrair(implode("\n", [$c['titulo'] ?? '', $c['descricao'] ?? '', $c['categoria_nome'] ?? '']));
+        return self::extrair(implode("\n", [$c['titulo'] ?? '', $c['descricao'] ?? ''])) ?: self::extrair((string)($c['categoria_nome'] ?? ''));
     }
 
     /**

@@ -7,23 +7,32 @@ declare(strict_types=1);
  */
 final class CursoController extends Controller {
     /**
-     * cursos.php — cursos, e-books (?tipo=ebook) e vídeos: faixa de título, abas por formato,
-     * filtros, "Recomendados para você" (candidato) e grade de cartões.
+     * cursos.php — uma página por formato, sem misturar: cursos (padrão), e-books (?tipo=ebook)
+     * e vídeos (?tipo=video). Faixa de título, abas por formato, filtros, "Recomendados para você"
+     * (candidato, só na aba de cursos) e grade de cartões paginada.
      */
     public function lista(): void {
-        $tipo = enum_val(get_str('tipo'), CursoDAO::TIPOS, '');
+        $tipo = enum_val(get_str('tipo'), CursoDAO::TIPOS, 'curso');
         $filtros = ['q' => get_str('q'), 'categoria_id' => (int)get_str('categoria_id'), 'gratuito' => get_str('gratuito')];
-        $cursos = []; $categorias = []; $porTipo = []; $dbErro = null;
+        $cursos = []; $categorias = []; $porTipo = array_fill_keys(CursoDAO::TIPOS, 0); $porArea = []; $dbErro = null;
         try {
-            $cursos = (new CursoDAO())->listar(true, $filtros);
-            foreach ($cursos as $c) $porTipo[$c['tipo']] = ($porTipo[$c['tipo']] ?? 0) + 1;   // contagem para as abas
-            if ($tipo !== '') $cursos = array_values(array_filter($cursos, fn($c) => $c['tipo'] === $tipo));
+            // Busca e preço vêm do banco; formato e área são separados aqui, para contar as abas e os atalhos de área.
+            $base = (new CursoDAO())->listar(true, ['q' => $filtros['q'], 'gratuito' => $filtros['gratuito']]);
+            $naArea = fn($c) => !$filtros['categoria_id'] || (int)$c['categoria_id'] === $filtros['categoria_id'];
+            foreach ($base as $c) {
+                if ($naArea($c) && isset($porTipo[$c['tipo']])) $porTipo[$c['tipo']]++;             // contagem das abas
+                if ($c['tipo'] === $tipo && $c['categoria_id']) $porArea[(int)$c['categoria_id']] = ($porArea[(int)$c['categoria_id']] ?? 0) + 1;
+            }
+            $cursos = array_values(array_filter($base, fn($c) => $c['tipo'] === $tipo && $naArea($c)));
             $categorias = (new CategoriaDAO())->listar('curso', true);
         } catch (Throwable $e) { $dbErro = mensagem_erro_banco($e); }
+        // Atalhos de área: só as áreas que têm conteúdo neste formato, da maior para a menor.
+        $atalhosArea = array_values(array_filter($categorias, fn($c) => isset($porArea[(int)$c['id']])));
+        usort($atalhosArea, fn($a, $b) => [$porArea[(int)$b['id']], $a['nome']] <=> [$porArea[(int)$a['id']], $b['nome']]);
 
         // Candidato: cursos que cobrem as competências que mais faltam nas vagas com melhor match.
         $recomendados = []; $faltantesTop = [];
-        if (usuarioLogado() && isCandidato() && !$dbErro) {
+        if ($tipo === 'curso' && usuarioLogado() && isCandidato() && !$dbErro) {
             $p = (new PerfilDAO())->buscarPorUsuarioId((int)$_SESSION['usuario_id']);
             if ($p) {
                 $contagem = [];
@@ -32,22 +41,33 @@ final class CursoController extends Controller {
                 }
                 arsort($contagem);
                 $faltantesTop = array_slice(array_keys($contagem), 0, 6);
-                $recomendados = Competencias::cursosPara($faltantesTop, (new CursoDAO())->listar(true), 3);
+                $soCursos = array_filter((new CursoDAO())->listar(true), fn($c) => $c['tipo'] === 'curso');
+                $recomendados = Competencias::cursosPara($faltantesTop, array_values($soCursos), 3);
             }
         }
 
         $cabecalhos = [
-            ''      => ['Cursos Gratuitos', 'Cursos, e-books e vídeos para fortalecer seu currículo e aumentar seu match com as vagas.'],
-            'curso' => ['Cursos', 'Capacitação gratuita e reconhecida para conquistar melhores oportunidades.'],
+            'curso' => ['Cursos Gratuitos', 'Cursos gratuitos e reconhecidos para fortalecer seu currículo e aumentar seu match com as vagas.'],
             'ebook' => ['E-books', 'Guias e materiais para ler no seu ritmo e se preparar para o mercado de trabalho.'],
             'video' => ['Vídeos', 'Aulas e conteúdos em vídeo para aprender na prática.'],
         ];
         [$tituloPag, $subPag] = $cabecalhos[$tipo];
+        $nomeFormato = mb_strtolower(pt_secao_formato($tipo)[0]);   // "cursos", "e-books", "vídeos"
+        // Link de cada aba/página: "cursos.php" (cursos), "?tipo=ebook", "?tipo=video" — mantendo os filtros.
         $qsFiltros = array_filter(['q' => $filtros['q'], 'categoria_id' => $filtros['categoria_id'] ?: '', 'gratuito' => $filtros['gratuito']]);
-        $abaUrl = fn(string $t) => url('cursos.php'.(($q = http_build_query($qsFiltros + ($t !== '' ? ['tipo' => $t] : []))) ? '?'.$q : ''));
-        $total = array_sum($porTipo);
+        $linkLista = fn(string $t, array $extra = []) => url('cursos.php'.(($q = http_build_query(array_filter($extra + $qsFiltros + ($t !== 'curso' ? ['tipo' => $t] : [])))) !== '' ? '?'.$q : ''));
+        $abaUrl = fn(string $t) => $linkLista($t);
+        $limparUrl = pt_secao_formato($tipo)[1];
 
-        $title = $tipo === 'ebook' ? 'E-books' : ($tipo === 'video' ? 'Vídeos' : 'Cursos');
+        // Paginação: 20 cartões por página (mesmo padrão da lista de vagas).
+        $porPagina = 20;
+        $encontrados = count($cursos);
+        $paginas = max(1, (int)ceil($encontrados / $porPagina));
+        $pagina = min(max(1, (int)get_str('pagina')), $paginas);
+        $cursos = array_slice($cursos, ($pagina - 1) * $porPagina, $porPagina);
+        $qs = fn(array $extra) => e($linkLista($tipo, ($extra['pagina'] ?? 0) > 1 ? $extra : []));   // já escapado; página 1 = endereço limpo
+
+        $title = $tipo === 'curso' ? 'Cursos gratuitos' : $tituloPag;
         $layoutLargo = true;
         $descricaoPagina = $tituloPag.' — '.$subPag;
         $this->view('cursos/lista', get_defined_vars());
@@ -93,16 +113,16 @@ final class CursoController extends Controller {
                 }
             } catch (Throwable) {}
         }
-        // Outros conteúdos: mesmo formato primeiro.
-        usort($outros, fn($a, $b) => ($b['tipo'] === $curso['tipo']) <=> ($a['tipo'] === $curso['tipo']));
-        $outros = array_slice($outros, 0, 4);
+        // Outros conteúdos: só do mesmo formato (curso com curso, e-book com e-book, vídeo com vídeo).
+        $outros = array_slice(array_values(array_filter($outros, fn($c) => $c['tipo'] === $curso['tipo'])), 0, 4);
 
-        $ptMenuEbook = $curso['tipo'] === 'ebook';   // e-book acende o item "E-books" do menu
+        $ptMenuTipo = (string)$curso['tipo'];   // acende o item do menu do formato (Cursos, E-books ou Vídeos)
         $formato = pt_formato((string)$curso['tipo']);
+        [$secaoNome, $secaoUrl, $secaoIcone] = pt_secao_formato((string)$curso['tipo']);
         $instituicao = $curso['instituicao'] ?: 'Instituição parceira';
         $ext = pt_url_externa($curso['url'] ?? '');
         $link = url('curso.php?id='.$id);
-        $abaTipo = $curso['tipo'] === 'ebook' ? ['E-books' => url('cursos.php?tipo=ebook')] : ['Cursos' => url('cursos.php')];
+        $abaTipo = [$secaoNome => $secaoUrl];
 
         $title = $curso['titulo'];
         $layoutLargo = true;
