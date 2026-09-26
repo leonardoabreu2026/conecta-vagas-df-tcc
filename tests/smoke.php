@@ -320,6 +320,17 @@ if ($status('') === 0) {
     confere('início: vitrine rotativa nas vagas, nos cursos e nos e-books (ritmos diferentes)', count($rit[1]) >= 3 && $filas === count($rit[1])
         && count(array_unique($rit[1])) === count($rit[1]) && str_contains($html, 'Os cursos se revezam aqui') && str_contains($html, 'Os e-books se revezam aqui'),
         count($rit[1]).' vitrine(s): '.implode(', ', $rit[1]));
+    // Blindagem HTTP: cabeçalhos de segurança, versão do PHP escondida e nenhum .php solto em public/ executa.
+    $cab = array_change_key_case((array)@get_headers($base, true), CASE_LOWER);
+    confere('cabeçalhos de segurança (CSP, nosniff, frame, permissions) e sem X-Powered-By', !isset($cab['x-powered-by'])
+        && str_contains((string)($cab['content-security-policy'] ?? ''), "form-action 'self'") && ($cab['x-content-type-options'] ?? '') === 'nosniff'
+        && ($cab['x-frame-options'] ?? '') === 'SAMEORIGIN' && isset($cab['permissions-policy']));
+    $plantado = PUBLIC_DIR.'/assets/_smoke_'.bin2hex(random_bytes(3)).'.php';
+    if (@file_put_contents($plantado, '<?php echo "EXECUTOU";') !== false) {
+        $sPlant = $status('assets/'.basename($plantado));
+        @unlink($plantado);
+        confere('.php colocado em public/assets não executa (403)', $sPlant === 403 && !str_contains($html, 'EXECUTOU'), "recebeu $sPlant");
+    }
     foreach (['config/config.php', 'config/cacert.pem', 'app/Core/Database.php', 'database/schema.sql', 'storage/.gitkeep', 'tests/smoke.php'] as $interno) {
         $s = $status($interno);
         confere(sprintf('%-24s bloqueado', $interno), in_array($s, [403, 404], true), "recebeu $s");

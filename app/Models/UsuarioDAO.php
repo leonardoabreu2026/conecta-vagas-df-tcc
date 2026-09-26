@@ -182,7 +182,7 @@ final class UsuarioDAO {
     public function minutosBloqueioLogin(string $ip, string $email, bool $somarIps = true): int {
         try {
             $db = Database::getConexao();
-            $janela = LOGIN_JANELA_MINUTOS;
+            $janela = max(1, (int)LOGIN_JANELA_MINUTOS);   // número inteiro: vai direto no SQL
             $s = $db->prepare("SELECT COUNT(*) n, MIN(created_at) primeira FROM tentativas_login WHERE ip=? AND email=? AND created_at > NOW() - INTERVAL $janela MINUTE");
             $s->execute([$ip, normalizar_email($email)]);
             $porEmail = $s->fetch();

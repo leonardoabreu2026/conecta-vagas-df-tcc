@@ -33,6 +33,13 @@ revalidar_sessao();
 header('X-Content-Type-Options: nosniff');          // o navegador não "adivinha" o tipo do arquivo
 header('X-Frame-Options: SAMEORIGIN');              // o site não pode ser embutido em outro (clickjacking)
 header('Referrer-Policy: strict-origin-when-cross-origin');
+header_remove('X-Powered-By');                      // não anuncia a versão do PHP
+// Política de conteúdo mínima (não bloqueia imagens nem scripts do próprio site): formulários só enviam
+// para o próprio site, nada de <base> injetado, plugins nem embutir o site em outro.
+header("Content-Security-Policy: frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'");
+header('Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()');
+header('Cross-Origin-Opener-Policy: same-origin-allow-popups');
+if (HTTPS_ATIVO) header('Strict-Transport-Security: max-age=31536000');
 
 // 4. Rotas: endereço → [Controller, ação]. Os endereços são os mesmos da versão anterior.
 $rotas = new Router();

@@ -3,6 +3,16 @@
 Options -Indexes
 <IfModule mod_rewrite.c>
     RewriteEngine On
+    # Blindagem: o único PHP executável é o front controller. Um .php que exista dentro de public/
+    # (ex.: colocado por engano em assets/) nunca roda. (As rotas, como vagas.php, não são arquivos:
+    # continuam indo para o index.php logo abaixo.)
+    RewriteCond %{REQUEST_FILENAME} -f
+    RewriteRule ^(?!index\.php$).+\.(php[0-9]?|phtml|phar|phps)$ - [F,NC]
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [QSA,L]
 </IfModule>
+
+# Arquivos ocultos (.htaccess, .git...) e cópias de segurança nunca são entregues.
+<FilesMatch "(^\.|\.(bak|old|orig|sql|log|ini|env|swp)$)">
+    Require all denied
+</FilesMatch>
