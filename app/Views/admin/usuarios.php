@@ -76,16 +76,13 @@
     <tr>
         <td class="num meta"><?=(int)$x['id']?></td><td><?=e($x['nome'])?><?=$eu ? ' <small class="meta">(você)</small>' : ''?></td><td><?=e($x['email'])?></td>
         <td><?=painel_status((string)$x['tipo'])?></td>
-        <td><?=$x['ativo'] ? painel_status('ativo', 'Ativo') : painel_status('bloqueado', 'Bloqueado')?></td>
+        <td><?php if ($eu): ?><?=painel_status('ativo', 'Ativo')?><?php else: ?><?=painel_chave((bool)$x['ativo'], 'ativar', 'desativar', (int)$x['id'], 'Ativo', 'Bloqueado', 'Bloquear esta conta? A pessoa perde o acesso na hora.', (string)$x['nome'])?><?php endif; ?></td>
         <td class="meta"><?=$x['ultimo_acesso'] ? date('d/m/Y H:i', strtotime($x['ultimo_acesso'])) : '—'?></td>
-        <td><div class="actions">
-            <a class="btn btn-sm" href="<?=e(painel_qs(['ver' => (int)$x['id']]))?>">Ver<span class="sr-only"> <?=e($x['nome'])?></span></a>
-            <a class="btn btn-sm btn-outline" href="<?=e(painel_qs(['edit' => (int)$x['id']]))?>#form-usuario">Editar<span class="sr-only"> <?=e($x['nome'])?></span></a>
-            <?php if (!$eu): ?>
-                <?=$x['ativo'] ? painel_acao('desativar', (int)$x['id'], 'Bloquear', 'btn-outline', 'Bloquear esta conta? A pessoa perde o acesso na hora.') : painel_acao('ativar', (int)$x['id'], 'Ativar')?>
-                <?=painel_acao('excluir', (int)$x['id'], 'Excluir', 'btn-danger', 'Excluir este usuário e todos os dados dele? Esta ação não pode ser desfeita.')?>
-            <?php endif; ?>
-        </div></td>
+        <td><?=painel_botoes([
+            ['href' => painel_qs(['ver' => (int)$x['id']]), 'texto' => 'Ver', 'icone' => 'olho', 'estilo' => 'primario'],
+            ['href' => painel_qs(['edit' => (int)$x['id']]).'#form-usuario', 'texto' => 'Editar', 'icone' => 'editar'],
+            $eu ? null : ['acao' => 'excluir', 'id' => (int)$x['id'], 'texto' => 'Excluir', 'icone' => 'lixeira', 'estilo' => 'perigo', 'confirmar' => 'Excluir este usuário e todos os dados dele? Esta ação não pode ser desfeita.'],
+        ], (string)$x['nome'])?></td>
     </tr>
     <?php endforeach; ?>
 </table></div>

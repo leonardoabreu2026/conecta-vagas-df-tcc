@@ -242,6 +242,10 @@ Nada é gravado sem revisão: a extração de vagas e cursos só preenche o form
 banco de talentos têm "Ordem:" no filtro. A lógica fica em `app/Core/helpers.php` (`lista_ordem()`, `ordenar_linhas()`,
 `paginar()`, `painel_qs()`) — as ações (salvar, publicar, excluir) voltam para a mesma aba, filtros, ordem e página.
 Abrir "Editar"/"Ver" de um registro que não existe mais avisa e volta para a lista (`registro_encontrado()`).
+Padrão visual das listas (em `partials/graficos.php`, estilo Bootstrap sem dependência externa): a **foto** de cada
+vaga, curso e e-book (`painel_miniatura()`); a **chave liga/desliga** da situação (`painel_chave()`: Aberta/Pausada,
+Publicado/Oculto, Ativo/Bloqueado, Ativa/Inativa — botão `role="switch"` num formulário POST com CSRF); e a
+**barra de ações** numa linha (`painel_botoes()`: Ver, Editar, Encerrar/Reabrir, Excluir, com ícone e cor por ação).
 
 **Cadastro de cursos e e-books** (painel → Cursos e e-books): uma caixa só, **Extrair**. Uma ficha (ou texto de
 divulgação) preenche o formulário; várias fichas abrem a prévia de importação. O formato da ficha é um só

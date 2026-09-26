@@ -93,19 +93,18 @@ $modeloFicha = "Título:\nTipo:\nInstituição:\nModalidade:\nCidade:\nNível:\n
 </form>
 <div class="table-wrap"><table class="table">
     <tr><th><span class="sr-only">Imagem</span></th><?=painel_th('titulo', 'Título', $ordem, $dir)?><?=painel_th('tipo', 'Formato', $ordem, $dir)?><?=painel_th('categoria_nome', 'Área', $ordem, $dir)?><?=painel_th('instituicao', 'Instituição', $ordem, $dir)?><?=painel_th('ativo', 'Situação', $ordem, $dir)?><?=painel_th('created_at', 'Cadastro', $ordem, $dir)?><th>Ações</th></tr>
-    <?php foreach ($lista as $x): $img = trim((string)$x['imagem']); ?>
+    <?php foreach ($lista as $x): ?>
     <tr>
-        <td><?=$img !== '' ? '<img class="pn-miniatura'.($x['tipo'] === 'ebook' ? ' ebook' : '').'" src="'.e(preg_match('#^https?://#i', $img) ? $img : url($img)).'" alt="" loading="lazy">' : '<span class="meta">—</span>'?></td>
+        <td class="pn-td-img"><?=painel_miniatura((string)$x['imagem'], $x['tipo'] === 'ebook' ? 'ebook' : '', pt_secao_formato((string)$x['tipo'])[2])?></td>
         <td class="quebra"><?=e($x['titulo'])?><br><small class="meta">#<?=(int)$x['id']?><?=$x['duracao'] ? ' · '.e($x['duracao']) : ''?> · <?=e(pt_preco($x))?></small></td>
         <td><?=e(rotulo($x['tipo']))?></td><td><?=e($x['categoria_nome'] ?? '—')?></td><td class="quebra"><?=e($x['instituicao'] ?? '')?></td>
-        <td><?=$x['ativo'] ? painel_status('publicado', 'Publicado') : painel_status('oculto', 'Oculto')?><?php if (CursoDAO::ehImagemPadrao((string)$x['imagem'])): ?><br><a class="pn-trocar-img" href="<?=e(painel_qs(['edit' => (int)$x['id']]))?>#form-curso">trocar imagem</a><?php endif; ?></td>
+        <td><?=painel_chave((bool)$x['ativo'], 'ativar', 'desativar', (int)$x['id'], 'Publicado', 'Oculto', '', (string)$x['titulo'])?><?php if (CursoDAO::ehImagemPadrao((string)$x['imagem'])): ?><br><a class="pn-trocar-img" href="<?=e(painel_qs(['edit' => (int)$x['id']]))?>#form-curso">trocar imagem</a><?php endif; ?></td>
         <td class="meta"><?=$x['created_at'] ? date('d/m/Y', strtotime((string)$x['created_at'])) : '—'?></td>
-        <td><div class="actions">
-            <a class="btn btn-sm" href="<?=url('curso.php?id='.(int)$x['id'])?>" target="_blank" rel="noopener">Ver<span class="sr-only"> <?=e($x['titulo'])?> (abre em nova aba)</span></a>
-            <a class="btn btn-sm btn-outline" href="<?=e(painel_qs(['edit' => (int)$x['id']]))?>#form-curso">Editar<span class="sr-only"> <?=e($x['titulo'])?></span></a>
-            <?=$x['ativo'] ? painel_acao('desativar', (int)$x['id'], 'Ocultar') : painel_acao('ativar', (int)$x['id'], 'Publicar')?>
-            <?=painel_acao('excluir', (int)$x['id'], 'Excluir', 'btn-danger', 'Excluir este conteúdo? Esta ação não pode ser desfeita.')?>
-        </div></td>
+        <td><?=painel_botoes([
+            ['href' => url('curso.php?id='.(int)$x['id']), 'texto' => 'Ver', 'icone' => 'olho', 'estilo' => 'primario', 'nova_aba' => true],
+            ['href' => painel_qs(['edit' => (int)$x['id']]).'#form-curso', 'texto' => 'Editar', 'icone' => 'editar'],
+            ['acao' => 'excluir', 'id' => (int)$x['id'], 'texto' => 'Excluir', 'icone' => 'lixeira', 'estilo' => 'perigo', 'confirmar' => 'Excluir este conteúdo? Esta ação não pode ser desfeita.'],
+        ], (string)$x['titulo'])?></td>
     </tr>
     <?php endforeach; ?>
 </table></div>

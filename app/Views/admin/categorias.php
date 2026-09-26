@@ -33,14 +33,13 @@
     <?php foreach ($cats as $x): $linkPublico = $x['tipo'] === 'vaga' ? 'vagas.php?categoria_id='.(int)$x['id'] : 'cursos.php?categoria_id='.(int)$x['id']; ?>
     <tr>
         <td><?=e($x['nome'])?></td><td><?=$x['tipo'] === 'vaga' ? 'Vagas' : 'Cursos'?></td>
-        <td><?=$x['ativo'] ? painel_status('ativa', 'Ativa') : painel_status('oculto', 'Inativa')?></td>
+        <td><?=painel_chave((bool)$x['ativo'], 'ativar', 'desativar', (int)$x['id'], 'Ativa', 'Inativa', '', (string)$x['nome'])?></td>
         <td class="num"><?=(int)$x['em_uso']?></td>
-        <td><div class="actions">
-            <a class="btn btn-sm" href="<?=url($linkPublico)?>" target="_blank" rel="noopener">Ver<span class="sr-only"> <?=$x['tipo'] === 'vaga' ? 'vagas' : 'cursos'?> de <?=e($x['nome'])?> (abre em nova aba)</span></a>
-            <a class="btn btn-sm btn-outline" href="<?=e(painel_qs(['edit' => (int)$x['id']]))?>#form-categoria">Editar<span class="sr-only"> <?=e($x['nome'])?></span></a>
-            <?=$x['ativo'] ? painel_acao('desativar', (int)$x['id'], 'Desativar') : painel_acao('ativar', (int)$x['id'], 'Ativar')?>
-            <?=painel_acao('excluir', (int)$x['id'], 'Excluir', 'btn-danger', (int)$x['em_uso'] ? 'Esta categoria é usada por '.(int)$x['em_uso'].' item(ns), que ficarão sem categoria. Excluir?' : 'Excluir categoria?')?>
-        </div></td>
+        <td><?=painel_botoes([
+            ['href' => url($linkPublico), 'texto' => 'Ver', 'icone' => 'olho', 'estilo' => 'primario', 'nova_aba' => true],
+            ['href' => painel_qs(['edit' => (int)$x['id']]).'#form-categoria', 'texto' => 'Editar', 'icone' => 'editar'],
+            ['acao' => 'excluir', 'id' => (int)$x['id'], 'texto' => 'Excluir', 'icone' => 'lixeira', 'estilo' => 'perigo', 'confirmar' => (int)$x['em_uso'] ? 'Esta categoria é usada por '.(int)$x['em_uso'].' item(ns), que ficarão sem categoria. Excluir?' : 'Excluir categoria?'],
+        ], (string)$x['nome'])?></td>
     </tr>
     <?php endforeach; ?>
 </table></div>

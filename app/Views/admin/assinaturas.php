@@ -72,12 +72,12 @@ $dinheiro = fn($v) => 'R$ '.number_format((float)$v, 2, ',', '.');
         <td class="meta"><?=date('d/m/Y', strtotime((string)$x['data_inicio']))?></td>
         <td class="meta"><?=date('d/m/Y', strtotime((string)$x['data_fim']))?></td>
         <td><?=$vencida ? painel_status('expirada', 'Vencida') : painel_status((string)$x['status'])?></td>
-        <td><div class="actions">
-            <a class="btn btn-sm" href="<?=e(url('admin/pages/usuarios.php?ver='.(int)$x['usuario_id']))?>">Conta<span class="sr-only"> de <?=e($x['usuario_nome'])?></span></a>
-            <a class="btn btn-sm btn-outline" href="<?=e(painel_qs(['edit' => (int)$x['id']]))?>#form-assinatura">Editar<span class="sr-only"> a assinatura #<?=(int)$x['id']?></span></a>
-            <?php if ($x['status'] === 'ativa'): ?><?=painel_acao('cancelar', (int)$x['id'], 'Cancelar', 'btn-outline', 'Cancelar esta assinatura? A conta volta ao plano gratuito na hora.')?><?php endif; ?>
-            <?=painel_acao('excluir', (int)$x['id'], 'Excluir', 'btn-danger', 'Excluir esta assinatura do histórico? Para manter o registro, use Cancelar.')?>
-        </div></td>
+        <td><?=painel_botoes([
+            ['href' => url('admin/pages/usuarios.php?ver='.(int)$x['usuario_id']), 'texto' => 'Conta', 'icone' => 'usuario', 'estilo' => 'primario'],
+            ['href' => painel_qs(['edit' => (int)$x['id']]).'#form-assinatura', 'texto' => 'Editar', 'icone' => 'editar'],
+            $x['status'] === 'ativa' ? ['acao' => 'cancelar', 'id' => (int)$x['id'], 'texto' => 'Cancelar', 'icone' => 'encerrar', 'estilo' => 'alerta', 'confirmar' => 'Cancelar esta assinatura? A conta volta ao plano gratuito na hora.'] : null,
+            ['acao' => 'excluir', 'id' => (int)$x['id'], 'texto' => 'Excluir', 'icone' => 'lixeira', 'estilo' => 'perigo', 'confirmar' => 'Excluir esta assinatura do histórico? Para manter o registro, use Cancelar.'],
+        ], 'assinatura #'.(int)$x['id'])?></td>
     </tr>
     <?php endforeach; ?>
 </table></div>

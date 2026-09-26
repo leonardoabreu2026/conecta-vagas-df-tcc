@@ -305,3 +305,55 @@ function painel_subabas(string $param, string $atual, array $abas, string $rotul
     }
     return $h.'</nav>';
 }
+
+/**
+ * Chave liga/desliga (estilo "switch" do Bootstrap) para a situação de um registro: Aberta/Pausada,
+ * Publicado/Oculto, Ativo/Bloqueado. É um botão de formulário POST com o token CSRF (role="switch"): clicar envia
+ * a ação oposta ao estado atual e a lista volta com os mesmos filtros. $confirmarDesligar abre a confirmação do app.js.
+ */
+function painel_chave(bool $ligado, string $acaoLigar, string $acaoDesligar, int $id, string $rotuloLigado, string $rotuloDesligado,
+                      string $confirmarDesligar = '', string $nome = ''): string {
+    $acao = $ligado ? $acaoDesligar : $acaoLigar;
+    $dica = 'Clique para mudar para "'.($ligado ? $rotuloDesligado : $rotuloLigado).'"';
+    return '<form method="post" class="pn-chave-form"><input type="hidden" name="csrf" value="'.e(csrf_token()).'">'
+         .'<input type="hidden" name="acao" value="'.e($acao).'"><input type="hidden" name="id" value="'.$id.'">'
+         .'<button type="submit" class="pn-chave'.($ligado ? ' ligada' : '').'" role="switch" aria-checked="'.($ligado ? 'true' : 'false').'" title="'.e($dica).'"'
+         .($ligado && $confirmarDesligar !== '' ? ' data-confirm="'.e($confirmarDesligar).'"' : '').'>'
+         .'<span class="pn-chave-trilho" aria-hidden="true"><span class="pn-chave-bolinha"></span></span>'
+         .'<span class="pn-chave-txt">'.e($ligado ? $rotuloLigado : $rotuloDesligado).'</span>'
+         .($nome !== '' ? '<span class="sr-only"> — '.e($nome).'</span>' : '').'</button></form>';
+}
+
+/**
+ * Barra de botões do CRUD numa linha só (estilo "btn-group" do Bootstrap): ícone + rótulo; em telas menores fica só
+ * o ícone (o rótulo aparece ao passar o mouse e é lido pelo leitor de tela). Cada item:
+ *  - link:  ['href' => url, 'texto' => 'Ver', 'icone' => 'olho', 'estilo' => 'primario', 'nova_aba' => true]
+ *  - ação:  ['acao' => 'excluir', 'id' => 5, 'texto' => 'Excluir', 'icone' => 'lixeira', 'estilo' => 'perigo', 'confirmar' => '...']
+ * Estilos: primario, neutro, sucesso, alerta, perigo. 'so_icone' => true mostra só o ícone (o nome fica na dica e no
+ * leitor de tela). $nome entra no texto do leitor de tela ("Editar Atendente").
+ */
+function painel_botoes(array $itens, string $nome = ''): string {
+    $h = '<div class="pn-bts" role="group" aria-label="Ações'.($nome !== '' ? ' de '.e($nome) : '').'">';
+    foreach ($itens as $b) {
+        if (!$b) continue;
+        $classe = 'pn-bt pn-bt-'.e($b['estilo'] ?? 'neutro').(!empty($b['so_icone']) ? ' pn-bt-icone' : '');
+        $miolo = icone($b['icone'] ?? 'seta', 15).'<span class="'.(!empty($b['so_icone']) ? 'sr-only' : 'pn-bt-txt').'">'.e($b['texto']).'</span>'
+               .($nome !== '' ? '<span class="sr-only"> '.e($nome).'</span>' : '').(!empty($b['nova_aba']) ? '<span class="sr-only"> (abre em nova aba)</span>' : '');
+        if (isset($b['href'])) {
+            $h .= '<a class="'.$classe.'" href="'.e($b['href']).'" title="'.e($b['texto']).'"'.(!empty($b['nova_aba']) ? ' target="_blank" rel="noopener"' : '').'>'.$miolo.'</a>';
+        } else {
+            $h .= '<form method="post" class="pn-bt-form"><input type="hidden" name="csrf" value="'.e(csrf_token()).'">'
+                .'<input type="hidden" name="acao" value="'.e($b['acao']).'"><input type="hidden" name="id" value="'.(int)$b['id'].'">'
+                .'<button type="submit" class="'.$classe.'" title="'.e($b['texto']).'"'.(($b['confirmar'] ?? '') !== '' ? ' data-confirm="'.e($b['confirmar']).'"' : '').'>'.$miolo.'</button></form>';
+        }
+    }
+    return $h.'</div>';
+}
+
+/** Miniatura da imagem do registro (vaga, curso, e-book) na lista do painel; sem imagem, o ícone do tipo. */
+function painel_miniatura(?string $img, string $classe = '', string $icone = 'vagas'): string {
+    $img = trim((string)$img);
+    if ($img === '') return '<span class="pn-miniatura pn-miniatura-vazia '.e($classe).'" aria-hidden="true">'.icone($icone, 20).'</span>';
+    $src = preg_match('#^https?://#i', $img) ? $img : url($img);
+    return '<img class="pn-miniatura '.e($classe).'" src="'.e($src).'" alt="" loading="lazy">';
+}
