@@ -89,6 +89,8 @@ TCC_GUSTAVO/
 ├── docs/ARQUITETURA.md    como o sistema funciona por dentro (leia para a apresentação)
 ├── docs/APRENDIZADO.md    a máquina de aprendizado: ideia, algoritmo, arquivos e roteiro de demonstração
 ├── docs/PESQUISA_CURSOS.md  pesquisa guiada: de onde vêm os links dos novos cursos e e-books
+├── docs/PROMPTS_PESQUISA.md prompt mestre para as IAs de pesquisa (cadastro manual por link ou título)
+├── .githooks/pre-commit   blindagem: antes de cada commit confere a sintaxe e roda o teste rápido
 ├── public/                ÚNICA pasta servida pelo Apache
 │   ├── index.php          front controller: porta de entrada de todas as páginas + tabela de rotas
 │   └── assets/            CSS, JavaScript e imagens (carrossel, cartazes das vagas, capas dos cursos)
@@ -96,7 +98,10 @@ TCC_GUSTAVO/
 │   ├── uploads/           currículos, fotos, logos e cartazes enviados
 │   ├── logs/              registros internos (ex.: links de redefinição de senha)
 │   └── backups/           cópias do banco e dos uploads (fora do git), com COMO_RESTAURAR.txt
-└── tests/smoke.php        teste rápido: classes, regras, banco e páginas
+└── tests/
+    ├── smoke.php          teste rápido: classes, regras, banco e páginas
+    ├── lint.php           confere a sintaxe de todos os arquivos PHP
+    └── verificar.bat      clique duplo: sintaxe + teste rápido, com o resultado na tela
 ```
 
 ## Como uma página é montada
@@ -115,6 +120,34 @@ Os endereços são os mesmos das versões anteriores (`vaga.php?id=3`, `view/per
 
 Detalhes — camadas, tabela completa de rotas, máquinas de extração e de match, regras dos planos,
 segurança e o mapa "onde estava → onde está": **[docs/ARQUITETURA.md](docs/ARQUITETURA.md)**.
+
+## Cadastrar cursos e e-books com ajuda de outra IA (prompt mestre)
+
+Em **Painel → Cursos e e-books → "Prompt mestre para IAs de pesquisa"**:
+
+1. escolha a IA (Perplexity, ChatGPT, Gemini, Copilot ou Claude), copie o **prompt mestre** e configure uma vez
+   (Space, Projeto, Gem… — a tela explica onde); depois é só mandar **links ou títulos**, um por linha;
+2. ou, sem configurar nada, cole os links/títulos em **"Ou um prompt avulso"** e copie o prompt pronto;
+3. a IA responde uma **ficha por item**, com os mesmos campos do formulário. **Uma ficha** → cole na
+   "Máquina de extração" (preenche o formulário inteiro, inclusive o link da imagem, baixada ao salvar);
+   **várias** → "Importar vários".
+
+Os prompts de cada IA, para consulta fora do painel: **[docs/PROMPTS_PESQUISA.md](docs/PROMPTS_PESQUISA.md)**.
+De onde vêm os links (fontes oficiais, lacunas por área): [docs/PESQUISA_CURSOS.md](docs/PESQUISA_CURSOS.md).
+
+## Blindagem do código (antes e depois de mexer)
+
+- **Clique duplo em `tests\verificar.bat`**: confere a sintaxe de todos os PHP e roda o teste rápido. No fim
+  aparece **TUDO CERTO** ou o que quebrou (com arquivo e linha). Faça isso depois de cada alteração.
+- **Commit protegido**: o gancho `.githooks/pre-commit` roda a mesma verificação antes de cada commit (pelo
+  terminal ou pelo VS Code). Se algo quebrou, o commit é **barrado** e o motivo aparece; o relatório completo
+  fica em `.git/smoke_ultimo.txt`. Precisa do Apache e do MySQL ligados. Emergência: `git commit --no-verify`.
+- O gancho já está ligado nesta máquina. Em uma cópia nova do projeto, ligue com:
+  ```
+  git config core.hooksPath .githooks
+  ```
+- Quebrou e não sabe onde? Volte ao último ponto estável: `git checkout teste-cliente-2026-09-26`
+  (o banco volta pelo backup, ver "Backup e restauração").
 
 ## Segurança (resumo)
 

@@ -132,7 +132,7 @@ $cartazNoForm = !empty($form['imagem']) && str_starts_with((string)$form['imagem
     <?php foreach ($lista as $x):
         $expirada = $x['status'] === 'ativa' && !empty($x['data_expiracao']) && $x['data_expiracao'] < date('Y-m-d'); ?>
     <tr>
-        <td><?=e($x['titulo'])?><?=$x['destaque'] ? ' <span class="badge-vip" title="Vaga em destaque">Destaque</span>' : ''?><br><small class="meta"><?=e($x['categoria_nome'] ?? 'Sem categoria')?> · <?=e($x['cidade'] ?? '')?><?=!empty($x['uf']) ? '/'.e($x['uf']) : ''?></small></td>
+        <td class="quebra"><?=e($x['titulo'])?><?=$x['destaque'] ? ' <span class="badge-vip" title="Vaga em destaque">Destaque</span>' : ''?><br><small class="meta"><?=e($x['categoria_nome'] ?? 'Sem categoria')?> · <?=e($x['cidade'] ?? '')?><?=!empty($x['uf']) ? '/'.e($x['uf']) : ''?></small></td>
         <?php if (isAdmin()): ?><td><?=e($x['empresa_nome'] ?? '')?></td><?php endif; ?>
         <td><?=$expirada ? painel_status('expirada', 'Expirada') : painel_status((string)$x['status'], $x['status'] === 'ativa' ? 'Aberta' : '')?></td>
         <td class="num"><a href="<?=url('admin/pages/candidaturas.php?vaga_id='.(int)$x['id'])?>"><?=isset($x['total_candidaturas']) ? (int)$x['total_candidaturas'] : 'ver'?></a></td>

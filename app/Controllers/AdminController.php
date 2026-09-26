@@ -331,11 +331,29 @@ final class AdminController extends Controller {
             }
             if ($acao === 'importar_cancelar') { unset($_SESSION['import_cursos']); redirect('admin/pages/cursos.php'); }
 
-            if ($acao === 'extrair') {
+            if ($acao === 'gerar_prompt') {
+                // Prompt avulso (PromptsPesquisa): links/títulos colados, um por linha. Só monta o texto — nada é salvo.
+                $itensAvulso = PromptsPesquisa::entradas(preg_split('/\R/u', post_str('itens_pesquisa')) ?: []);
+                $formatoAvulso = enum_val(post_str('formato_pesquisa'), CursoDAO::TIPOS, '');
+                if (!$itensAvulso) flash('erro', 'Cole pelo menos um link ou título (um por linha).');
+            } elseif ($acao === 'extrair') {
                 // Extração de cursos: preenche o formulário para revisão, sem salvar.
-                $extraido = ExtracaoCurso::doTexto(post_str('texto_anuncio'));
+                // Ficha da IA de pesquisa ("Título: ... Link: ... Imagem: ...") → todos os campos; texto de divulgação → regras.
+                $texto = post_str('texto_anuncio');
+                $fichasLidas = preg_match('/^\s*(?:\d+[.)]\s*)?(?:\*\*)?t[ií]tulo(?:\*\*)?\s*:/imu', $texto) ? ExtracaoCurso::fichas($texto, array_column($cats, 'nome')) : [];
+                if ($fichasLidas) {
+                    set_time_limit(120);   // confere a imagem da ficha (ou acha a da página do curso)
+                    $extraido = ImagemRemota::completar([$fichasLidas[0]])[0];
+                    if (count($fichasLidas) > 1) flash('info', count($fichasLidas).' fichas coladas: o formulário foi preenchido com a primeira. Para cadastrar todas de uma vez, use "Importar vários".');
+                } else {
+                    $extraido = ExtracaoCurso::doTexto($texto);
+                }
                 $cat = $extraido['categoria'] ? $catDao->buscarPorNome($extraido['categoria'], 'curso') : null;
-                $form = $extraido + ['id' => $id, 'categoria_id' => $cat['id'] ?? null, 'imagem' => ExtracaoCurso::capa($extraido['instituicao'], $extraido['url'], $extraido['tipo']), 'ativo' => 1];
+                $imgLink = (string)($extraido['imagem_url'] ?? '');
+                $form = $extraido + ['id' => $id, 'categoria_id' => $cat['id'] ?? null, 'ativo' => 1];
+                // Imagem: a do link (baixada ao salvar) ou, sem ela, o banner da instituição.
+                $form['imagem'] = $imgLink !== '' ? '' : ExtracaoCurso::capa($extraido['instituicao'], $extraido['url'], $extraido['tipo']);
+                $form['imagem_url'] = $imgLink;
                 $form['sugestao_maquina'] = $this->guardarSugestao('curso', fn() => MaquinaAprendizado::sugestao('curso', $extraido, [], post_str('texto_anuncio')));
             } else {
                 $d = [
@@ -366,12 +384,24 @@ final class AdminController extends Controller {
                 $img = salvar_imagem_enviada('imagem_arquivo', 'curso');
                 if ($img === false) $erros[] = 'Imagem inválida (use JPG, PNG ou WEBP até 3 MB).';
                 elseif ($img !== null) $d['imagem'] = $img;
+                // Imagem por LINK (ex.: a que a IA de pesquisa trouxe): baixada para storage/uploads só ao salvar,
+                // e só quando não veio arquivo nem caminho.
+                $imgLink = mb_substr(post_str('imagem_url'), 0, 500);
+                if ($imgLink !== '' && !url_http_valida($imgLink)) $erros[] = 'O link da imagem precisa começar com http:// ou https://.';
+                $baixada = '';
+                if (!$erros && $img === null && $d['imagem'] === '' && $imgLink !== '') {
+                    set_time_limit(120);
+                    $baixada = ImagemRemota::baixar([$imgLink], 'curso')[$imgLink] ?? '';
+                    if ($baixada === '') $erros[] = 'Não foi possível baixar a imagem do link (precisa ser uma imagem JPG, PNG ou WEBP pública). Envie o arquivo ou escolha um caminho.';
+                    else $d['imagem'] = $baixada;
+                }
                 // Padrão da plataforma: todo curso, e-book e vídeo aparece com a sua imagem.
-                if ($img !== false && $d['imagem'] === '' && post_str('imagem') === '') $erros[] = 'Informe a imagem do conteúdo: escolha um caminho (ex.: a capa do e-book) ou envie uma imagem.';
+                if ($img !== false && $d['imagem'] === '' && post_str('imagem') === '' && $imgLink === '') $erros[] = 'Informe a imagem do conteúdo: escolha um caminho (ex.: a capa do e-book), envie uma imagem ou cole o link dela.';
                 if ($erros) {
                     if ($img) { apagar_upload_sem_uso($img); $d['imagem'] = $existente['imagem'] ?? ''; } // não deixa arquivo órfão
+                    if ($baixada !== '') { apagar_upload_sem_uso($baixada); $d['imagem'] = $existente['imagem'] ?? ''; }
                     flash('erro', implode(' ', $erros));
-                    $form = $d + ['id' => $id, 'sugestao_maquina' => post_str('sugestao_maquina')];
+                    $form = $d + ['id' => $id, 'imagem_url' => $imgLink, 'sugestao_maquina' => post_str('sugestao_maquina')];
                 } else {
                     $ok = $dao->salvar($d, $id);
                     if ($ok && $existente && ($existente['imagem'] ?? '') !== $d['imagem']) apagar_upload_sem_uso((string)$existente['imagem']);
@@ -418,6 +448,13 @@ final class AdminController extends Controller {
             fn($c) => ($pesquisa['fonte'] === '' || FontesCursos::fonteDoLink((string)$c['url']) === $pesquisa['fonte'])
                 && ($pesquisa['area'] === '' || ($c['categoria_nome'] ?? '') === $pesquisa['area'])))));
         $promptPesquisa = FontesCursos::prompt($pesquisa, $areasAtivas, $cobertura['lacunas'], $linksCadastrados);
+        // PROMPT MESTRE (PromptsPesquisa): um por IA, para o cadastro manual; e o avulso com os links/títulos colados.
+        $iaMestre = isset(PromptsPesquisa::IAS[get_str('ia')]) ? get_str('ia') : 'perplexity';
+        $promptMestre = PromptsPesquisa::mestre($iaMestre, $areasAtivas);
+        $itensAvulso ??= [];
+        $formatoAvulso ??= '';
+        $promptAvulso = $itensAvulso ? PromptsPesquisa::avulso($itensAvulso, $areasAtivas, $formatoAvulso) : '';
+        $mestreAberto = get_str('ia') !== '' || ($acao ?? '') === 'gerar_prompt';
         $pesquisaAberta = get_str('p_qtd') !== '';
         $semPadrao = count(array_filter($todos, fn($c) => FontesCursos::nomeOficial((string)$c['instituicao'], (string)$c['url']) !== (string)$c['instituicao']));
         $importacao = (array)($_SESSION['import_cursos'] ?? []);

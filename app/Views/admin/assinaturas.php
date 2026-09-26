@@ -66,7 +66,7 @@ $dinheiro = fn($v) => 'R$ '.number_format((float)$v, 2, ',', '.');
     <?php foreach ($lista as $x): $vencida = $x['status'] === 'ativa' && !$x['vigente']; ?>
     <tr>
         <td class="num meta"><?=(int)$x['id']?></td>
-        <td><?=e($x['usuario_nome'])?><br><small class="meta"><?=e($x['usuario_email'])?></small></td>
+        <td class="quebra"><?=e($x['usuario_nome'])?><br><small class="meta"><?=e($x['usuario_email'])?></small></td>
         <td><?=e($nomePlano[$x['plano']] ?? $x['plano'])?></td>
         <td class="num"><?=e($dinheiro($x['valor']))?></td>
         <td class="meta"><?=date('d/m/Y', strtotime((string)$x['data_inicio']))?></td>

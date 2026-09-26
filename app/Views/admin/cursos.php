@@ -3,6 +3,7 @@
  * CRUD de cursos/e-books + extração de cursos (rota admin/pages/cursos.php) — só administrador.
  * Recebe de AdminController::cursos(): $form, $extraido, $cats, $lista (página atual), $totalLista, $pagina, $paginas,
  * $porTipo, $filtroTipo, $filtroCat, $filtroSituacao, $busca, $ordem, $dir, $todos, $publicados, $imagens,
+ * $promptMestre/$iaMestre (prompt mestre por IA), $promptAvulso/$itensAvulso/$formatoAvulso/$mestreAberto (PromptsPesquisa),
  * $promptPesquisa (prompt da pesquisa guiada), $pesquisa (formato/área/fonte/quantidade escolhidos), $cobertura
  * (conteúdo por área e por fonte, lacunas), $pesquisaAberta, $semPadrao e $importacao (fichas lidas, aguardando confirmação).
  */
@@ -21,6 +22,42 @@ $porTipoTotal = array_count_values(array_column($todos, 'tipo'));
     <?=painel_kpi('Publicados', gf_num($publicados), gf_num(count($todos) - $publicados).' oculto(s)', 'painel', 'admin/pages/cursos.php?situacao=publicado#lista-cursos')?>
 </div>
 <div class="form" style="max-width:none">
+    <details class="extrator" id="prompt-mestre" <?=$mestreAberto ? 'open' : ''?>>
+        <summary>Prompt mestre para IAs de pesquisa: mande links ou títulos e receba as fichas prontas para o cadastro</summary>
+        <ol class="imp-passos">
+            <li><b>Escolha a IA</b> e configure o prompt mestre UMA vez. Depois, é só mandar links ou títulos (um por linha): ela responde uma ficha por item, com os mesmos campos do formulário abaixo.
+                <nav class="pn-subabas" aria-label="IA de pesquisa" style="margin:10px 0 0">
+                    <?php foreach (PromptsPesquisa::IAS as $k => $cfg): ?><a href="<?=e(painel_qs(['ia' => $k]))?>#prompt-mestre"<?=$iaMestre === $k ? ' class="ativo" aria-current="page"' : ''?>><?=e($cfg['nome'])?></a><?php endforeach; ?>
+                </nav>
+                <p class="meta" style="margin:8px 0 0"><b>Como configurar no <?=e(PromptsPesquisa::IAS[$iaMestre]['nome'])?>:</b> <?=e(PromptsPesquisa::IAS[$iaMestre]['onde'])?></p>
+                <div class="imp-prompt">
+                    <label for="pm-texto" class="sr-only">Prompt mestre para <?=e(PromptsPesquisa::IAS[$iaMestre]['nome'])?></label>
+                    <textarea id="pm-texto" rows="8" readonly><?=e($promptMestre)?></textarea>
+                    <button type="button" class="btn btn-sm" data-copiar="<?=e($promptMestre)?>" data-copiado="Prompt mestre copiado!"><span>Copiar prompt mestre (<?=e(PromptsPesquisa::IAS[$iaMestre]['nome'])?>)</span></button>
+                </div>
+            </li>
+            <li><b>Ou um prompt avulso</b> (sem configurar nada): cole os links e/ou títulos, um por linha (até 20), e gere o prompt pronto para qualquer IA.
+                <form method="post" action="#prompt-mestre" style="margin-top:8px">
+                    <input type="hidden" name="csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="acao" value="gerar_prompt">
+                    <label for="pm-itens" class="sr-only">Links ou títulos, um por linha</label>
+                    <textarea id="pm-itens" name="itens_pesquisa" rows="4" placeholder="https://www.ev.org.br/cursos/excel-basico&#10;Cartilha de Segurança para Internet — CERT.br&#10;Como Elaborar um Currículo (SEBRAE)"><?=e(implode("\n", $itensAvulso))?></textarea>
+                    <div class="form-actions" style="margin-top:8px">
+                        <select name="formato_pesquisa" aria-label="Formato dos itens" style="max-width:260px"><option value="">Cursos e e-books (misto)</option><?php foreach (CursoDAO::TIPOS as $t): ?><option value="<?=$t?>" <?=$formatoAvulso === $t ? 'selected' : ''?>>Só <?=e(mb_strtolower(pt_secao_formato($t)[0]))?></option><?php endforeach; ?></select>
+                        <button class="btn btn-outline">Gerar prompt avulso</button>
+                    </div>
+                </form>
+                <?php if ($promptAvulso !== ''): ?>
+                <div class="imp-prompt">
+                    <label for="pm-avulso" class="sr-only">Prompt avulso</label>
+                    <textarea id="pm-avulso" rows="8" readonly><?=e($promptAvulso)?></textarea>
+                    <button type="button" class="btn btn-sm" data-copiar="<?=e($promptAvulso)?>" data-copiado="Prompt avulso copiado!"><span>Copiar prompt avulso (<?=count($itensAvulso)?> <?=count($itensAvulso) === 1 ? 'item' : 'itens'?>)</span></button>
+                </div>
+                <?php endif; ?>
+            </li>
+            <li><b>Cole a resposta da IA:</b> <b>uma ficha</b> → na "Máquina de extração" abaixo (preenche o formulário inteiro, inclusive o link da imagem, para você revisar e salvar); <b>várias fichas</b> → em "Importar vários".</li>
+        </ol>
+    </details>
+
     <details class="extrator" id="importar" <?=$importacao || $pesquisaAberta ? 'open' : ''?>>
         <summary>Novos links: pesquisa guiada com IA (Perplexity, ChatGPT) e importação de vários de uma vez</summary>
         <ol class="imp-passos">
@@ -102,10 +139,10 @@ $porTipoTotal = array_count_values(array_column($todos, 'tipo'));
     </details>
 
     <details class="extrator" <?=$extraido || !empty($form['id']) || $importacao ? '' : 'open'?>>
-        <summary>Máquina de extração: cole o texto de divulgação e o formulário é preenchido</summary>
+        <summary>Máquina de extração: cole o texto de divulgação (ou a ficha da IA de pesquisa) e o formulário é preenchido</summary>
         <form method="post" style="margin-top:10px">
             <input type="hidden" name="csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="acao" value="extrair"><input type="hidden" name="id" value="<?=(int)($form['id'] ?? 0)?>">
-            <label for="c-texto">Texto de divulgação do curso ou e-book</label>
+            <label for="c-texto">Texto de divulgação do curso ou e-book — ou a ficha que a IA de pesquisa respondeu</label>
             <textarea id="c-texto" name="texto_anuncio" rows="5" placeholder="Ex.: EXCEL AVANÇADO — Curso online e gratuito da Fundação Bradesco com certificado. Carga horária: 12 horas. https://www.ev.org.br/..."><?=e(post_str('texto_anuncio'))?></textarea>
             <div class="form-actions"><button class="btn btn-outline">Extrair dados do texto</button></div>
         </form>
@@ -131,6 +168,9 @@ $porTipoTotal = array_count_values(array_column($todos, 'tipo'));
             <div class="full"><label for="c-url">Link oficial</label><input id="c-url" name="url" type="url" maxlength="500" value="<?=e($form['url'])?>" placeholder="https://"></div>
             <div><label for="c-img">Imagem (caminho)</label><input id="c-img" name="imagem" list="imgs-curso" maxlength="255" value="<?=e($form['imagem'])?>"><datalist id="imgs-curso"><?php foreach ($imagens as $i): ?><option value="<?=e($i)?>"><?php endforeach; ?></datalist></div>
             <div><label for="c-arq">…ou envie uma imagem</label><input id="c-arq" type="file" name="imagem_arquivo" accept="image/jpeg,image/png,image/webp"></div>
+            <div class="full"><label for="c-img-url">…ou cole o link da imagem (a capa do e-book ou a imagem do curso; é baixada ao salvar)</label>
+                <div class="pm-img-link"><?php if (url_http_valida((string)($form['imagem_url'] ?? ''))): ?><img class="imp-miniatura" src="<?=e($form['imagem_url'])?>" alt="Prévia da imagem do link" loading="lazy" referrerpolicy="no-referrer"><?php endif; ?>
+                <input id="c-img-url" name="imagem_url" type="url" maxlength="500" value="<?=e((string)($form['imagem_url'] ?? ''))?>" placeholder="https://.../capa.jpg"></div></div>
             <div class="full"><label for="c-desc">Descrição</label><textarea id="c-desc" name="descricao" rows="4"><?=e($form['descricao'])?></textarea></div>
         </div>
         <div class="check"><input type="checkbox" name="gratuito" value="1" id="gratuito" <?=(int)$form['gratuito'] ? 'checked' : ''?>><label for="gratuito">Gratuito</label></div>
@@ -154,8 +194,8 @@ $porTipoTotal = array_count_values(array_column($todos, 'tipo'));
     <?php foreach ($lista as $x): $img = trim((string)$x['imagem']); ?>
     <tr>
         <td><?=$img !== '' ? '<img class="pn-miniatura'.($x['tipo'] === 'ebook' ? ' ebook' : '').'" src="'.e(preg_match('#^https?://#i', $img) ? $img : url($img)).'" alt="" loading="lazy">' : '<span class="meta">—</span>'?></td>
-        <td><?=e($x['titulo'])?><br><small class="meta">#<?=(int)$x['id']?><?=$x['duracao'] ? ' · '.e($x['duracao']) : ''?> · <?=e(pt_preco($x))?></small></td>
-        <td><?=e(rotulo($x['tipo']))?></td><td><?=e($x['categoria_nome'] ?? '—')?></td><td><?=e($x['instituicao'] ?? '')?></td>
+        <td class="quebra"><?=e($x['titulo'])?><br><small class="meta">#<?=(int)$x['id']?><?=$x['duracao'] ? ' · '.e($x['duracao']) : ''?> · <?=e(pt_preco($x))?></small></td>
+        <td><?=e(rotulo($x['tipo']))?></td><td><?=e($x['categoria_nome'] ?? '—')?></td><td class="quebra"><?=e($x['instituicao'] ?? '')?></td>
         <td><?=$x['ativo'] ? painel_status('publicado', 'Publicado') : painel_status('oculto', 'Oculto')?></td>
         <td class="meta"><?=$x['created_at'] ? date('d/m/Y', strtotime((string)$x['created_at'])) : '—'?></td>
         <td><div class="actions">

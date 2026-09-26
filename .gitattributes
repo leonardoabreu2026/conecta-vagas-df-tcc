@@ -1,0 +1,4 @@
+# Scripts de shell (gancho do git) precisam de LF; .bat do Windows, de CRLF.
+.githooks/* text eol=lf
+*.sh text eol=lf
+*.bat text eol=crlf

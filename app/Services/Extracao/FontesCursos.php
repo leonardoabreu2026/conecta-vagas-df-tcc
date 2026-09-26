@@ -140,7 +140,7 @@ final class FontesCursos {
 
         $jaCadastrados = array_values(array_unique(array_filter(array_map('trim', $jaCadastrados))));
         $excluir = $jaCadastrados ? "\nJÁ CADASTRADOS (NÃO repita nenhum destes links nem o mesmo conteúdo com outro link):\n".implode("\n", array_slice($jaCadastrados, 0, 150))."\n" : '';
-        $listaAreas = implode(' | ', $areas);
+        $ficha = PromptsPesquisa::formatoFicha($areas);   // os mesmos rótulos do prompt mestre e do formulário
 
         return <<<TXT
 Você é um pesquisador de oportunidades de capacitação profissional para uma plataforma de empregos do Distrito Federal (Brasil) chamada Conecta Vagas DF. O público são pessoas que procuram emprego, muitas no primeiro emprego.
@@ -158,20 +158,7 @@ REGRAS:
 6. Responda SOMENTE com as fichas abaixo, sem introdução, sem conclusão, sem tabela e sem negrito. Separe cada ficha com uma linha contendo apenas ---
 
 FORMATO DE CADA FICHA (copie os rótulos exatamente assim):
-Título: nome oficial do curso ou e-book
-Tipo: Curso | E-book | Vídeo
-Instituição: quem oferece
-Modalidade: EAD | Presencial | Híbrido
-Cidade: cidade/UF (só se for presencial ou híbrido; se for EAD escreva Online)
-Nível: Iniciante | Intermediário | Avançado
-Carga horária: ex.: 20 horas (ou Não informado)
-Gratuito: Sim | Não
-Preço: ex.: R\$ 49,90 (só se não for gratuito)
-Área: uma destas: {$listaAreas}
-Link: endereço oficial completo, começando com https://
-Imagem: endereço direto da imagem da capa (e-book) ou da imagem do curso, começando com https://
-Descrição: 1 ou 2 frases dizendo o que a pessoa aprende e se tem certificado
----
+{$ficha}
 {$excluir}
 TXT;
     }

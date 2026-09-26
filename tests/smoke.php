@@ -114,6 +114,25 @@ confere('FontesCursos: cobertura por área/fonte, lacunas e prompt (formato, lac
 $pf = FontesCursos::prompt(['fonte' => 'sebrae', 'area' => 'B', 'quantidade' => 99], ['A', 'B']);
 confere('FontesCursos: prompt só numa fonte e numa área (quantidade limitada a 40)', str_contains($pf, 'SOMENTE nesta fonte') && str_contains($pf, 'SEBRAE —')
     && !str_contains($pf, 'Microsoft Learn') && str_contains($pf, 'Todos da área "B"') && str_contains($pf, 'liste 40 '));
+// Prompt mestre (PromptsPesquisa): cada IA tem o seu, com os rótulos que a máquina lê; a ficha volta com TODOS os campos.
+$okMestre = true;
+foreach (array_keys(PromptsPesquisa::IAS) as $ia) {
+    $pm = PromptsPesquisa::mestre($ia, ['Área X']);
+    $okMestre = $okMestre && str_contains($pm, 'FORMATO DE CADA FICHA') && str_contains($pm, 'Área: uma destas: Área X') && str_contains($pm, 'NÃO ENCONTRADO');
+}
+$fichaIa = "**Título:** Guia Y\n**Tipo:** E-book\n**Instituição:** Banco Central\n**Modalidade:** EAD\n**Cidade:** Online\n**Nível:** Intermediário\n**Carga horária:** 3 horas\n"
+    ."**Gratuito:** Não\n**Preço:** R$ 19,90\n**Área:** Área X\n**Link:** https://www.bcb.gov.br/guia.pdf [1]\n**Imagem:** https://www.bcb.gov.br/capa.png\n**Descrição:** Aprenda X. Com certificado.\n---\nNÃO ENCONTRADO: Curso Z — fora do ar";
+$ida = ExtracaoCurso::fichas($fichaIa, ['Área X'])[0] ?? [];
+confere('prompt mestre das 5 IAs e ida-e-volta da ficha (todos os campos do formulário)', $okMestre && count(ExtracaoCurso::fichas($fichaIa, ['Área X'])) === 1
+    && ($ida['titulo'] ?? '') === 'Guia Y' && ($ida['tipo'] ?? '') === 'ebook' && ($ida['modalidade'] ?? '') === 'ead' && ($ida['nivel'] ?? '') === 'intermediario'
+    && ($ida['duracao'] ?? '') === '3 horas' && ($ida['gratuito'] ?? 1) === 0 && ($ida['preco'] ?? null) === 19.9 && ($ida['categoria'] ?? '') === 'Área X'
+    && ($ida['url'] ?? '') === 'https://www.bcb.gov.br/guia.pdf' && ($ida['imagem_url'] ?? '') === 'https://www.bcb.gov.br/capa.png'
+    && ($ida['instituicao'] ?? '') === 'Banco Central do Brasil' && str_contains((string)($ida['descricao'] ?? ''), 'certificado'),
+    json_encode(array_intersect_key($ida, array_flip(['titulo', 'tipo', 'nivel', 'duracao', 'gratuito', 'preco', 'categoria', 'url', 'imagem_url', 'instituicao'])), JSON_UNESCAPED_UNICODE));
+$pa = PromptsPesquisa::avulso(["1. https://cartilha.cert.br/", "- Guia Z (SEBRAE)", '', 'https://cartilha.cert.br/'], ['Área X'], 'ebook');
+confere('prompt avulso: links e títulos identificados, numeração e repetidos limpos, até 20', str_contains($pa, '1. https://cartilha.cert.br/ — LINK')
+    && str_contains($pa, '2. Guia Z (SEBRAE) — TÍTULO') && !str_contains($pa, '3. https') && str_contains($pa, 'E-BOOKS')
+    && count(PromptsPesquisa::entradas(array_map(fn($n) => "Curso $n", range(1, 30)))) === 20);
 // Ordenação e paginação das tabelas do painel.
 $linhas = [['id' => 1, 'n' => 'Ética'], ['id' => 2, 'n' => 'abacaxi'], ['id' => 3, 'n' => null], ['id' => 4, 'n' => 'Curso 10'], ['id' => 5, 'n' => 'Curso 9']];
 confere('ordenar_linhas: sem diferenciar maiúsculas/acentos, números naturais, vazios no fim', array_column(ordenar_linhas($linhas, 'n', 'asc'), 'id') === [2, 5, 4, 1, 3]

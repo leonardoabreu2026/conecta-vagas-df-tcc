@@ -339,3 +339,5 @@ body.cv .ml-memorias h3{margin:0 0 8px;font-size:14px;color:var(--gf-tinta)}
 .imp-cobertura{margin:4px 0 0}
 .imp-cobertura > summary{cursor:pointer;font-weight:650;color:var(--cv-azul)}
 .imp-cobertura .table-wrap{margin:10px 0 0}
+.pm-img-link{display:flex;align-items:center;gap:10px}
+.pm-img-link input{flex:1;min-width:0}

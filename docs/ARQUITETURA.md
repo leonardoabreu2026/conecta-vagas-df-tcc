@@ -236,6 +236,18 @@ banco de talentos têm "Ordem:" no filtro. A lógica fica em `app/Core/helpers.p
 `paginar()`, `painel_qs()`) — as ações (salvar, publicar, excluir) voltam para a mesma aba, filtros, ordem e página.
 Abrir "Editar"/"Ver" de um registro que não existe mais avisa e volta para a lista (`registro_encontrado()`).
 
+**Prompt mestre para IAs de pesquisa** (`PromptsPesquisa`, painel → Cursos e e-books): um prompt por IA
+(Perplexity, ChatGPT, Gemini, Copilot, Claude) para configurar uma vez; depois cada mensagem é uma lista de links
+ou títulos e a IA responde uma ficha por item. Há também o prompt avulso (links/títulos já dentro). O formato da
+ficha é um só (`PromptsPesquisa::formatoFicha`), o mesmo da pesquisa guiada e o mesmo que `ExtracaoCurso::fichas()`
+lê: uma ficha colada na "Máquina de extração" preenche o formulário inteiro; o link da imagem é conferido
+(`ImagemRemota::completar`) e baixado só ao salvar (`ImagemRemota::baixar`). Cópia dos prompts em
+[PROMPTS_PESQUISA.md](PROMPTS_PESQUISA.md).
+
+**Blindagem do código**: `tests/lint.php` (sintaxe de todos os PHP), `tests/verificar.bat` (lint + smoke com
+clique duplo) e o gancho `.githooks/pre-commit` (`git config core.hooksPath .githooks`), que barra o commit se a
+sintaxe ou o teste rápido falharem. `.gitattributes` mantém o gancho em LF e o `.bat` em CRLF.
+
 **Assinaturas** (painel → Assinaturas, só administrador): concede o plano da conta (candidato → Candidato VIP,
 empresa → Empresa Premium) por N dias, edita valor/datas/situação, cancela (mantém o histórico) e exclui. Cada conta
 tem no máximo uma assinatura ativa; se a empresa perde o Premium, o destaque das vagas sai. Os preços ficam em

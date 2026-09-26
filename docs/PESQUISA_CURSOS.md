@@ -3,6 +3,9 @@
 Este é o roteiro para **cadastrar novos cursos, e-books e vídeos** com links oficiais, sem repetir o que já existe
 e mirando as áreas que têm menos conteúdo. Tudo acontece em **Painel → Cursos e e-books → "Novos links: pesquisa guiada"**.
 
+> Para cadastrar **um item por vez** (ou uma lista de links/títulos que você já tem), use o **prompt mestre**
+> das IAs de pesquisa: [PROMPTS_PESQUISA.md](PROMPTS_PESQUISA.md).
+
 ## Visão geral
 
 ```

@@ -1,0 +1,27 @@
+#!/bin/sh
+# ============================================================
+# BLINDAGEM DO CÓDIGO — roda sozinho antes de cada commit (git, VS Code, qualquer cliente).
+# 1. confere a sintaxe de todos os arquivos PHP (tests/lint.php);
+# 2. roda o teste rápido (tests/smoke.php: regras, banco e páginas — Apache e MySQL ligados).
+# Se algo falhar, o commit NÃO é feito e aparece o motivo. O relatório completo do teste fica em
+# .git/smoke_ultimo.txt. Emergência (ex.: XAMPP desligado): git commit --no-verify
+# Ativado com: git config core.hooksPath .githooks
+# ============================================================
+PHP="/c/xampp/php/php.exe"
+[ -x "$PHP" ] || PHP="C:/xampp/php/php.exe"
+[ -x "$PHP" ] || PHP="php"
+
+echo "Blindagem: conferindo a sintaxe dos arquivos PHP..."
+"$PHP" tests/lint.php || { echo ""; echo "COMMIT BLOQUEADO: erro de sintaxe no PHP (veja acima)."; exit 1; }
+
+echo "Blindagem: rodando o teste rapido (tests/smoke.php)..."
+"$PHP" tests/smoke.php > .git/smoke_ultimo.txt 2>&1
+if [ $? -ne 0 ]; then
+    grep -E "FALHA|RESULTADO" .git/smoke_ultimo.txt
+    echo ""
+    echo "COMMIT BLOQUEADO: o teste rapido falhou. Relatorio completo: .git/smoke_ultimo.txt"
+    echo "(Apache e MySQL precisam estar ligados no XAMPP.)"
+    exit 1
+fi
+grep -E "RESULTADO" .git/smoke_ultimo.txt
+exit 0
