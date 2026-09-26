@@ -257,6 +257,10 @@ try {
     confere('tabelas da máquina de aprendizado (criadas sozinhas se faltarem)', !$faltamMl && is_array($aprendido['exemplos']), implode(', ', $faltamMl));
     $contas = $db->query("SELECT email FROM usuarios WHERE email IN ('admin@conectavagas.com','empresa@conectavagas.com','candidato@conectavagas.com')")->fetchAll(PDO::FETCH_COLUMN);
     confere('contas de teste do database/seed.sql', count($contas) === 3, count($contas).' de 3 encontradas');
+    $senhasReadme = ['admin@conectavagas.com' => 'Admin@123', 'empresa@conectavagas.com' => 'Empresa@123', 'candidato@conectavagas.com' => 'Candidato@123'];
+    $naoEntram = [];
+    foreach ($senhasReadme as $em => $sn) { $u = (new UsuarioDAO())->buscarPorEmail($em); if (!$u || !(int)$u['ativo'] || !password_verify($sn, (string)$u['senha'])) $naoEntram[] = $em; }
+    confere('contas de teste entram com as senhas do README', !$naoEntram, implode(', ', $naoEntram).' → rode: C:\xampp\php\php.exe database\resetar_senhas.php');
     confere('vagas abertas listadas pelo VagaDAO', count((new VagaDAO())->listar(true)) > 0);
     $cruzadas = (int)$db->query("SELECT COUNT(*) FROM vagas v JOIN categorias c ON c.id=v.categoria_id WHERE c.tipo<>'vaga'")->fetchColumn()
               + (int)$db->query("SELECT COUNT(*) FROM cursos cu JOIN categorias c ON c.id=cu.categoria_id WHERE c.tipo<>'curso'")->fetchColumn();

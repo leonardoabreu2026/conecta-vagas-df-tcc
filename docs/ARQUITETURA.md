@@ -312,9 +312,13 @@ volta para a mesma lista filtrada (`volta_filtros()`).
 - Novo ID de sessão e novo token CSRF a cada login/cadastro (evita fixação de sessão).
 - A cada requisição a conta é conferida no banco: se o administrador desativar/excluir o usuário ou mudar o
   tipo dele, a sessão aberta perde o acesso na hora.
-- Limite de tentativas de login (tabela `tentativas_login`): 5 senhas erradas para o mesmo e-mail (ou 30 do
-  mesmo IP) em 15 minutos bloqueiam por 15 minutos. Mensagem única e mesmo tempo de resposta, para não
-  revelar quais e-mails existem. Ajustes em `config/config.php`.
+- Limite de tentativas de login (tabela `tentativas_login`): 8 senhas erradas para o mesmo e-mail a partir do
+  mesmo IP (20 somando todos os IPs, ou 60 de um mesmo IP) em 5 minutos pausam o login por 5 minutos; a tela
+  avisa quando faltam 3. Mensagem única e mesmo tempo de resposta, para não revelar quais e-mails existem.
+  Espaços no começo/fim da senha são tolerados. Ajustes em `config/config.php`.
+- O hash da senha só é refeito se o algoritmo mudar (nunca por custo do bcrypt): refazer muda o hash, e a
+  sessão entende hash novo como "senha alterada", o que derrubaria as outras sessões abertas da conta.
+- `database/resetar_senhas.php` (só terminal) volta as contas de teste às senhas do README e libera o login.
 - Sair: aceita POST com token, link com token (`logout_url()`) ou o clique no menu do próprio site
   (cabeçalho `Sec-Fetch-Site`). Um link vindo de outro site mostra uma confirmação.
 

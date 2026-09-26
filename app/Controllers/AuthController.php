@@ -31,15 +31,18 @@ final class AuthController extends Controller {
 
         $minutos = $dao->minutosBloqueioLogin($ip, $email);
         if ($minutos > 0) {
-            flash('erro', "Muitas tentativas de login sem sucesso. Por segurança, aguarde {$minutos} minuto(s) e tente novamente, ou use \"Esqueci minha senha\".");
+            flash('erro', "Muitas tentativas de login sem sucesso. Por segurança, aguarde {$minutos} minuto(s) e tente novamente, ou use \"Esqueci minha senha\". Dica: o botão do olho, ao lado da senha, mostra o que foi digitado.");
             redirect('login.php');
         }
 
         $u = ($email !== '' && $senha !== '') ? $dao->autenticar($email, $senha) : false;
         if (!$u) {
             $dao->registrarFalhaLogin($ip, $email);
-            // Mensagem única: não revela se o e-mail existe.
-            flash('erro', 'E-mail ou senha inválidos ou conta desativada.');
+            // Mensagem única: não revela se o e-mail existe. Avisa quando está perto da pausa de segurança.
+            $restam = $dao->tentativasRestantes($ip, $email);
+            flash('erro', 'E-mail ou senha inválidos ou conta desativada.'.($restam <= 3
+                ? ' '.($restam === 0 ? 'Login pausado por '.LOGIN_JANELA_MINUTOS.' minutos por segurança.' : 'Restam '.$restam.' '.($restam === 1 ? 'tentativa' : 'tentativas').' antes de uma pausa de '.LOGIN_JANELA_MINUTOS.' minutos.').' Use o olho ao lado da senha para conferir o que foi digitado, ou "Esqueci minha senha".'
+                : ''));
             redirect('login.php'.($voltar ? '?voltar=planos' : ''));
         }
 

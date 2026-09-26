@@ -30,7 +30,8 @@ Planos demonstrativos (sem cobrança real): **Candidato VIP** e **Empresa Premiu
      ```
    O `schema.sql` apaga e recria **só** o banco `conecta_vagas_df_v2`.
 4. Se o MySQL tiver senha, ajuste `DB_PASS` em `config/config.php`.
-5. Acesse `http://localhost/<pasta do projeto>/` — ex.: `http://localhost/TCC%20v2/TCC_GUSTAVO/`.
+5. Acesse `http://localhost/<pasta do projeto>/` — nesta máquina: **`http://localhost/conecta%20vagas%20df%20tcc/`**
+   (espaços no nome da pasta viram `%20`).
 6. Confira se está tudo certo: `C:\xampp\php\php.exe tests\smoke.php`
 
 ### Contas de teste
@@ -42,6 +43,23 @@ Planos demonstrativos (sem cobrança real): **Candidato VIP** e **Empresa Premiu
 | Candidato | candidato@conectavagas.com | Candidato@123 |
 
 Troque as senhas antes de publicar o sistema.
+
+### Não consegue entrar?
+
+- **Confira o que foi digitado** com o botão do olho, ao lado do campo de senha. A senha diferencia
+  maiúsculas de minúsculas (`Admin@123`, não `admin@123`); espaços no começo ou no fim são ignorados.
+- **Login em pausa**: depois de **8 senhas erradas** para o mesmo e-mail (a tela avisa quando faltam 3), o
+  login daquele e-mail pausa por **5 minutos** e libera sozinho. Os limites ficam em `config/config.php`
+  (`LOGIN_MAX_TENTATIVAS`, `LOGIN_JANELA_MINUTOS`).
+- **"Sua sessão foi encerrada porque a senha da conta foi alterada"**: a senha daquela conta mudou (pelo
+  "Esqueci minha senha", pelo administrador ou pelo comando abaixo). Basta entrar de novo com a senha nova.
+- **Reconectar as senhas de teste** (volta as 3 contas às senhas da tabela acima, reativa as contas e tira
+  qualquer pausa do login):
+  ```
+  C:\xampp\php\php.exe database\resetar_senhas.php
+  ```
+- **"Esqueci minha senha"**: no modo de demonstração (sem e-mail configurado), o link de redefinição fica em
+  `storage/logs/redefinicoes_senha.log`.
 
 ## Estrutura de pastas
 
@@ -62,7 +80,8 @@ TCC_GUSTAVO/
 ├── config/config.php      configurações (banco, depuração, limites, pastas)
 ├── database/
 │   ├── schema.sql         estrutura do banco (tabelas, chaves, índices)
-│   └── seed.sql           dados de demonstração (contas, vagas, cursos)
+│   ├── seed.sql           dados de demonstração (contas, vagas, cursos)
+│   └── resetar_senhas.php volta as senhas das contas de teste e libera o login (só pelo terminal)
 ├── docs/ARQUITETURA.md    como o sistema funciona por dentro (leia para a apresentação)
 ├── docs/APRENDIZADO.md    a máquina de aprendizado: ideia, algoritmo, arquivos e roteiro de demonstração
 ├── docs/PESQUISA_CURSOS.md  pesquisa guiada: de onde vêm os links dos novos cursos e e-books
@@ -71,7 +90,8 @@ TCC_GUSTAVO/
 │   └── assets/            CSS, JavaScript e imagens (carrossel, cartazes das vagas, capas dos cursos)
 ├── storage/               arquivos gerados pelo sistema (inacessível pelo navegador)
 │   ├── uploads/           currículos, fotos, logos e cartazes enviados
-│   └── logs/              registros internos (ex.: links de redefinição de senha)
+│   ├── logs/              registros internos (ex.: links de redefinição de senha)
+│   └── backups/           cópias do banco e dos uploads (fora do git), com COMO_RESTAURAR.txt
 └── tests/smoke.php        teste rápido: classes, regras, banco e páginas
 ```
 
@@ -91,6 +111,31 @@ Os endereços são os mesmos das versões anteriores (`vaga.php?id=3`, `view/per
 
 Detalhes — camadas, tabela completa de rotas, máquinas de extração e de match, regras dos planos,
 segurança e o mapa "onde estava → onde está": **[docs/ARQUITETURA.md](docs/ARQUITETURA.md)**.
+
+## Segurança (resumo)
+
+- Senhas com `password_hash` (bcrypt); pausa automática do login contra força-bruta (ver acima).
+- Token CSRF em todo formulário; SQL sempre com parâmetros (`?`); todo texto na tela passa por `e()`.
+- Cada ação confere a permissão: candidato só mexe no que é dele, empresa só nas próprias vagas e
+  candidaturas, e o currículo só abre para o dono, para a empresa que o recebeu ou para empresa Premium.
+- Só `public/` é servida e, dentro dela, só o `index.php` executa PHP. Configuração, banco, backups,
+  documentos, `.git` e arquivos ocultos respondem 403.
+- Cabeçalhos: `Content-Security-Policy` (formulários só para o próprio site), `X-Frame-Options`,
+  `X-Content-Type-Options`, `Referrer-Policy` e `Permissions-Policy`; a versão do PHP não é anunciada.
+- Detalhes em [docs/ARQUITETURA.md](docs/ARQUITETURA.md) (seção de segurança).
+
+## Backup e restauração
+
+- Ponto de restauração do código: tag `teste-cliente-2026-09-26` (`git checkout teste-cliente-2026-09-26`).
+- Banco e arquivos enviados: `storage/backups/<data>/` tem o `.sql` do banco, o `uploads.zip` e o passo a
+  passo (`COMO_RESTAURAR.txt`). Para voltar o banco, dentro da pasta do backup:
+  ```
+  C:\xampp\mysql\bin\mysql.exe -u root < banco_conecta_vagas_df_v2.sql
+  ```
+- Fazer um backup novo:
+  ```
+  C:\xampp\mysql\bin\mysqldump.exe -u root --single-transaction --databases conecta_vagas_df_v2 > storage\backups\banco.sql
+  ```
 
 ## Depuração e produção
 

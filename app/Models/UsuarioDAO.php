@@ -152,12 +152,16 @@ final class UsuarioDAO {
             password_verify($senha, '$2y$10$uiTuTWeHZjGisseAQFKgOOZrIqsMAT2p5wAY886sw.TAw7x5bae56');
             return false;
         }
-        if ((int)$u['ativo'] === 1 && password_verify($senha, $u['senha'])) {
+        // Tolerância: espaço digitado sem querer no começo/fim da senha (colar, corretor do celular) não impede o login.
+        $confere = password_verify($senha, $u['senha']) || (trim($senha) !== $senha && trim($senha) !== '' && password_verify(trim($senha), $u['senha']));
+        if ((int)$u['ativo'] === 1 && $confere) {
             $db = Database::getConexao();
             $db->prepare("UPDATE usuarios SET ultimo_acesso=NOW() WHERE id=?")->execute([$u['id']]);
-            if (password_needs_rehash($u['senha'], PASSWORD_DEFAULT)) {
+            // Só refaz o hash se o ALGORITMO mudou (não por diferença de custo do bcrypt): refazer muda o hash,
+            // e a sessão entende hash novo como "senha alterada" — derrubaria as outras sessões abertas da conta.
+            if ((password_get_info($u['senha'])['algo'] ?? null) !== PASSWORD_DEFAULT) {
                 // Devolve o hash novo: é dele que a sessão tira a "marca" da senha (ver iniciar_sessao_usuario).
-                $u['senha'] = password_hash($senha, PASSWORD_DEFAULT);
+                $u['senha'] = password_hash(password_verify($senha, $u['senha']) ? $senha : trim($senha), PASSWORD_DEFAULT);
                 $db->prepare("UPDATE usuarios SET senha=? WHERE id=?")->execute([$u['senha'], $u['id']]);
             }
             return $u;
@@ -201,6 +205,18 @@ final class UsuarioDAO {
             return max(1, (int)ceil(($libera - time()) / 60));
         } catch (Throwable) {
             return 0; // tabela ausente (banco antigo): não impede o login
+        }
+    }
+
+    /** Quantos erros ainda cabem para este IP + e-mail antes da pausa (para avisar na tela). */
+    public function tentativasRestantes(string $ip, string $email): int {
+        try {
+            $janela = max(1, (int)LOGIN_JANELA_MINUTOS);
+            $s = Database::getConexao()->prepare("SELECT COUNT(*) FROM tentativas_login WHERE ip=? AND email=? AND created_at > NOW() - INTERVAL $janela MINUTE");
+            $s->execute([$ip, normalizar_email($email)]);
+            return max(0, LOGIN_MAX_TENTATIVAS - (int)$s->fetchColumn());
+        } catch (Throwable) {
+            return LOGIN_MAX_TENTATIVAS;
         }
     }
 
