@@ -40,7 +40,7 @@ echo painel_cabecalho('Visão geral', 'Olá, '.$primeiroNome.'. '.(isAdmin()
       <?=painel_kpi('Vagas abertas', gf_compacto($resumoVagas['abertas']), 'de '.gf_num($resumoVagas['total']).' cadastradas'.($resumoVagas['vencidas'] ? ' · '.gf_num($resumoVagas['vencidas']).' vencidas' : ''), 'maleta', 'admin/pages/vagas.php')?>
       <?=painel_kpi('Candidaturas', gf_compacto($recebidas), '+'.gf_num($noPeriodo).' nos últimos '.$dias.' dias', 'formulario', 'admin/pages/candidaturas.php')?>
       <?=painel_kpi('Match médio', $matchCandidaturas['media'] !== null ? gf_num($matchCandidaturas['media']).'%' : '—', 'das '.gf_num($matchCandidaturas['com_match']).' candidaturas com nota', 'alvo')?>
-      <?=painel_kpi('Assinaturas vigentes', gf_num($vigentes), 'R$ '.gf_num($receita, 2).'/mês (demonstrativo)', 'planos')?>
+      <?=painel_kpi('Assinaturas vigentes', gf_num($vigentes), 'R$ '.gf_num($receita, 2).'/mês (demonstrativo)', 'planos', 'admin/pages/assinaturas.php')?>
       <?=painel_kpi('Cursos publicados', gf_compacto($cursosPublicados), gf_num($ebooks).' '.gf_plural($ebooks, 'e-book', 'e-books').' entre eles', 'cursos', 'admin/pages/cursos.php')?>
     <?php else: $visu = $resumoVagas['visualizacoes']; ?>
       <?=painel_kpi('Vagas abertas', gf_compacto($resumoVagas['abertas']), 'de '.gf_num($resumoVagas['total']).' cadastradas'.($resumoVagas['vencidas'] ? ' · '.gf_num($resumoVagas['vencidas']).' vencidas' : ''), 'maleta', 'admin/pages/vagas.php')?>
@@ -136,7 +136,7 @@ echo painel_cabecalho('Visão geral', 'Olá, '.$primeiroNome.'. '.(isAdmin()
     <?php $nomesPlano = ['assinante' => 'Candidato VIP', 'empresa' => 'Empresa Premium']; ?>
     <div class="pn-cartao-cab">
       <div><h2 id="g-planos">Assinaturas vigentes por plano</h2><p class="pn-cartao-sub">Receita mensal demonstrativa: R$ <?=gf_num($receita, 2)?></p></div>
-      <a class="pn-cartao-link" href="<?=url('planos.php')?>">Planos</a>
+      <a class="pn-cartao-link" href="<?=url('admin/pages/assinaturas.php')?>">Ver todas</a>
     </div>
     <div class="pn-cartao-corpo">
       <?=grafico_barras(array_map(fn($p) => ['rotulo' => $nomesPlano[$p], 'valor' => $planos[$p]['vigentes']], array_keys($nomesPlano)),

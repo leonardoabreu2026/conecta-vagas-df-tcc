@@ -42,7 +42,7 @@ final class CurriculoController extends Controller {
             flash('erro', $erroUpload[$f['error'] ?? UPLOAD_ERR_NO_FILE] ?? 'Não foi possível receber o arquivo.');
             redirect('view/perfil/index.php');
         }
-        if ((int)$f['size'] > MAX_FILE_SIZE) { flash('erro', 'O currículo ultrapassa o limite de 10 MB.'); redirect('view/perfil/index.php'); }
+        if ((int)$f['size'] > MAX_FILE_SIZE) { flash('erro', 'O arquivo é grande demais. Envie um currículo de até '.(int)(MAX_FILE_SIZE / 1024 / 1024).' MB.'); redirect('view/perfil/index.php'); }
 
         $ext = strtolower(pathinfo((string)$f['name'], PATHINFO_EXTENSION));
         if (!in_array($ext, ['pdf','doc','docx'], true)) { flash('erro', 'Envie o currículo em PDF, DOC ou DOCX.'); redirect('view/perfil/index.php'); }
@@ -171,7 +171,7 @@ final class CurriculoController extends Controller {
             'match' => $matchMsg,
         ];
         $n = count(array_filter($todos, fn($i) => in_array($i['status'], ['aplicado', 'mesclado'], true)));
-        flash('ok', "Currículo lido ({$metodo}): {$n} dado(s) aplicados ao perfil e o portfólio foi montado. {$matchMsg} Confira o relatório da extração abaixo.");
+        flash('ok', "Currículo lido ({$metodo}): {$n} dado(s) aplicado(s) ao perfil e o portfólio foi montado. {$matchMsg} Confira o relatório da extração abaixo.");
         redirect('view/perfil/portfolio.php?relatorio=1');
     }
 

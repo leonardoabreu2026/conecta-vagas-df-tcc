@@ -91,6 +91,15 @@ function painel_qs(array $troca = []): string {
     return '?'.http_build_query($q);
 }
 
+/**
+ * "Editar"/"Ver" de um registro que não existe mais (ex.: excluído em outra aba): avisa e volta para a lista,
+ * em vez de abrir o formulário vazio sem explicação.
+ */
+function registro_encontrado(?array $registro, string $param, string $lista, string $aviso = 'Registro não encontrado (pode ter sido excluído).'): ?array {
+    if (get_str($param) !== '' && !$registro) { flash('erro', $aviso); redirect($lista.painel_qs()); }
+    return $registro;
+}
+
 /** Valor digitado anteriormente (para repreencher o formulário depois de um erro), já escapado. */
 function old(string $key,string $default=''): string { $v=$_POST[$key]??$default; return e(is_scalar($v) ? (string)$v : $default); }
 

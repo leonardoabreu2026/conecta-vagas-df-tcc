@@ -9,6 +9,13 @@ declare(strict_types=1);
  * Ao ser criado, o DAO marca como expiradas as assinaturas vencidas (uma vez por requisição).
  */
 final class AssinaturaDAO {
+    public const PLANOS = ['assinante', 'empresa'];
+    public const STATUS = ['ativa', 'cancelada', 'expirada'];
+    /** Preço mensal de cada plano (demonstrativo) — usado em planos.php e no painel de assinaturas. */
+    public const PRECOS = ['assinante' => 9.90, 'empresa' => 49.90];
+    /** Plano de cada tipo de conta. */
+    public const PLANO_DO_TIPO = ['candidato' => 'assinante', 'empresa' => 'empresa'];
+
     /** Já conferiu as assinaturas vencidas nesta requisição? (vários DAOs são criados por página) */
     private static bool $expiracaoConferida = false;
 
@@ -152,7 +159,7 @@ final class AssinaturaDAO {
      * deixam de ficar no topo. (As vagas continuam ativas; só novas publicações
      * passam a respeitar o limite do plano básico.)
      */
-    private function removerDestaqueSemPremium(int $usuarioId): void {
+    public function removerDestaqueSemPremium(int $usuarioId): void {
         try {
             if ($this->isEmpresaPremium($usuarioId)) return;
             Database::getConexao()->prepare("UPDATE vagas v JOIN perfis p ON p.id = v.perfil_empresa_id
@@ -283,5 +290,77 @@ final class AssinaturaDAO {
             $out[$r['plano']] = ['vigentes' => (int)$r['vigentes'], 'canceladas' => (int)$r['canceladas'], 'expiradas' => (int)$r['expiradas'], 'receita' => (float)$r['receita']];
         }
         return $out;
+    }
+
+    // ------------------------------------------------------------------
+    // PAINEL DO ADMINISTRADOR (admin/pages/assinaturas.php): ver, editar, cancelar e excluir
+    // ------------------------------------------------------------------
+
+    /** Todas as assinaturas com a conta (nome, e-mail, tipo) e se está vigente (ativa e no prazo). Filtros: plano, status, q. */
+    public function listarTodas(array $f = []): array {
+        $sql = "SELECT a.*, u.nome AS usuario_nome, u.email AS usuario_email, u.tipo AS usuario_tipo,
+                       (a.status = 'ativa' AND a.data_fim >= CURDATE()) AS vigente
+                FROM assinaturas a JOIN usuarios u ON u.id = a.usuario_id WHERE 1=1";
+        $p = [];
+        if (in_array($f['plano'] ?? '', self::PLANOS, true)) { $sql .= " AND a.plano = ?"; $p[] = $f['plano']; }
+        if (in_array($f['status'] ?? '', self::STATUS, true)) { $sql .= " AND a.status = ?"; $p[] = $f['status']; }
+        if (($f['q'] ?? '') !== '') { $sql .= " AND (u.nome LIKE ? OR u.email LIKE ?)"; $p[] = like($f['q']); $p[] = like($f['q']); }
+        if (!empty($f['usuario_id'])) { $sql .= " AND a.usuario_id = ?"; $p[] = (int)$f['usuario_id']; }
+        $s = Database::getConexao()->prepare($sql." ORDER BY a.id DESC");
+        $s->execute($p);
+        return $s->fetchAll();
+    }
+
+    public function buscar(int $id): ?array {
+        $s = Database::getConexao()->prepare("SELECT a.*, u.nome AS usuario_nome, u.email AS usuario_email, u.tipo AS usuario_tipo
+                                              FROM assinaturas a JOIN usuarios u ON u.id = a.usuario_id WHERE a.id = ?");
+        $s->execute([$id]);
+        return $s->fetch() ?: null;
+    }
+
+    /**
+     * Edita valor, datas e situação. Regras: fim não antes do início; para ficar ATIVA o fim precisa ser hoje
+     * ou depois; e cada conta tem no máximo uma assinatura ativa (as outras ativas da conta são canceladas).
+     * Se a empresa perde o Premium, o destaque das vagas sai. Devolve '' (ok) ou a mensagem de erro.
+     */
+    public function atualizar(int $id, array $d): string {
+        $a = $this->buscar($id);
+        if (!$a) return 'Assinatura não encontrada (pode ter sido excluída).';
+        if (!in_array($d['status'], self::STATUS, true)) return 'Situação inválida.';
+        if ($d['valor'] === null || $d['valor'] < 0 || $d['valor'] > 99999.99) return 'Informe um valor válido (0 ou mais).';
+        if (!$d['data_inicio'] || !$d['data_fim']) return 'Informe as datas de início e fim.';
+        if ($d['data_fim'] < $d['data_inicio']) return 'A data de fim não pode ser antes do início.';
+        if ($d['status'] === 'ativa' && $d['data_fim'] < date('Y-m-d')) return 'Para ficar ativa, o fim precisa ser hoje ou depois (ou marque como expirada).';
+        $db = Database::getConexao();
+        $db->beginTransaction();
+        try {
+            if ($d['status'] === 'ativa') $db->prepare("UPDATE assinaturas SET status='cancelada' WHERE usuario_id=? AND status='ativa' AND id<>?")->execute([(int)$a['usuario_id'], $id]);
+            $db->prepare("UPDATE assinaturas SET valor=?, data_inicio=?, data_fim=?, status=? WHERE id=?")
+               ->execute([number_format((float)$d['valor'], 2, '.', ''), $d['data_inicio'], $d['data_fim'], $d['status'], $id]);
+            $db->commit();
+        } catch (Throwable) {
+            if ($db->inTransaction()) $db->rollBack();
+            return 'Não foi possível salvar a assinatura.';
+        }
+        $this->removerDestaqueSemPremium((int)$a['usuario_id']);
+        return '';
+    }
+
+    /** Cancela UMA assinatura (pelo id), mantendo o histórico. */
+    public function cancelarPorId(int $id): bool {
+        $a = $this->buscar($id);
+        if (!$a || $a['status'] !== 'ativa') return false;
+        Database::getConexao()->prepare("UPDATE assinaturas SET status='cancelada' WHERE id=?")->execute([$id]);
+        $this->removerDestaqueSemPremium((int)$a['usuario_id']);
+        return true;
+    }
+
+    /** Exclui do histórico (use cancelar para manter o registro). */
+    public function excluir(int $id): bool {
+        $a = $this->buscar($id);
+        if (!$a) return false;
+        Database::getConexao()->prepare("DELETE FROM assinaturas WHERE id=?")->execute([$id]);
+        $this->removerDestaqueSemPremium((int)$a['usuario_id']);
+        return true;
     }
 }

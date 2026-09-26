@@ -200,7 +200,7 @@ final class EmpresaController extends Controller {
             }
         }
 
-        $edit = get_str('edit') !== '' ? $vagaPermitida((int)get_str('edit')) : null;
+        $edit = registro_encontrado(get_str('edit') !== '' ? $vagaPermitida((int)get_str('edit')) : null, 'edit', 'admin/pages/vagas.php', 'Vaga não encontrada (pode ter sido excluída ou ser de outra empresa).');
         if (get_str('edit') !== '' && !$edit) negar_acesso('Vaga não encontrada ou sem permissão.');
         $parecida ??= null;
         $relatorioVaga ??= null;
@@ -216,8 +216,10 @@ final class EmpresaController extends Controller {
         $filtroStatus = enum_val(get_str('status'), [...VagaDAO::STATUS, 'expirada'], '');
         $busca = get_str('q');
         $buscaN = Competencias::normalizar($busca);
+        $filtroEmpresa = isAdmin() ? (int)get_str('empresa') : 0;   // administrador: vagas de uma conta de empresa
         $lista = array_values(array_filter($todas, fn($x) => ($filtroStatus === '' || $situacao($x) === $filtroStatus)
-            && ($buscaN === '' || str_contains(Competencias::normalizar(($x['titulo'] ?? '').' '.($x['empresa_nome'] ?? '').' '.($x['cidade'] ?? '')), $buscaN))));
+            && (!$filtroEmpresa || (int)$x['perfil_empresa_id'] === $filtroEmpresa)
+            && ($buscaN === '' || str_contains(Competencias::normalizar(($x['titulo'] ?? '').' '.($x['empresa_nome'] ?? '').' '.($x['publicado_por'] ?? '').' '.($x['cidade'] ?? '')), $buscaN))));
         // Ordenação por coluna (padrão: destaque e mais recentes, como vem do banco) e paginação.
         foreach ($lista as &$x) $x['situacao'] = $situacao($x);
         unset($x);
@@ -341,7 +343,7 @@ final class EmpresaController extends Controller {
             if ($erros) { flash('erro', implode(' ', $erros)); redirect('admin/pages/empresa_perfil.php'); }
             if ($cnpj !== '') $d['cnpj'] = vsprintf('%s.%s.%s/%s-%s', [substr($cnpj, 0, 2), substr($cnpj, 2, 3), substr($cnpj, 5, 3), substr($cnpj, 8, 4), substr($cnpj, 12, 2)]);
             $logo = salvar_imagem_enviada('logo', 'logo');
-            if ($logo === false) { flash('erro', 'Logo inválida (JPG, PNG ou WEBP até 3 MB).'); redirect('admin/pages/empresa_perfil.php'); }
+            if ($logo === false) { flash('erro', 'Logo inválida: use JPG, PNG ou WEBP de até 3 MB.'); redirect('admin/pages/empresa_perfil.php'); }
             if ($logo) $d['foto'] = $logo;
             $d['publico'] = 1; $d['aceite_lgpd'] = 1;
             $ok = $dao->salvar(new PerfilDTO($d));

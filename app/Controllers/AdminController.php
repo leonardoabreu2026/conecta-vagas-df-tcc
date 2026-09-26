@@ -116,8 +116,8 @@ final class AdminController extends Controller {
             redirect('admin/pages/usuarios.php'.painel_qs(!$ok && $id ? ['edit' => $id] : []));
         }
 
-        $edit = get_str('edit') !== '' ? $dao->buscarPorId((int)get_str('edit')) : null;
-        $ver = get_str('ver') !== '' ? $dao->resumo((int)get_str('ver')) : null;
+        $edit = registro_encontrado(get_str('edit') !== '' ? $dao->buscarPorId((int)get_str('edit')) : null, 'edit', 'admin/pages/usuarios.php', 'Usuário não encontrado (pode ter sido excluído).');
+        $ver = registro_encontrado(get_str('ver') !== '' ? $dao->resumo((int)get_str('ver')) : null, 'ver', 'admin/pages/usuarios.php', 'Usuário não encontrado (pode ter sido excluído).');
         $filtroTipo = enum_val(get_str('tipo'), UsuarioDAO::TIPOS, '');
         $busca = get_str('q');
         $filtroSituacao = enum_val(get_str('situacao'), ['ativo', 'bloqueado'], '');
@@ -129,6 +129,74 @@ final class AdminController extends Controller {
         $title = 'Usuários';
         $abaAtiva = 'usuarios';
         $this->view('admin/usuarios', get_defined_vars());
+    }
+
+    /**
+     * admin/pages/assinaturas.php — CRUD de assinaturas (Candidato VIP e Empresa Premium).
+     * Criar: concede o plano da conta (candidato → VIP, empresa → Premium) por N dias. Editar: valor, datas e situação.
+     * Cancelar mantém o histórico; excluir apaga. Cada conta tem no máximo uma assinatura ativa.
+     */
+    public function assinaturas(): void {
+        exigirAdmin();
+        $dao = new AssinaturaDAO();
+        $usuarioDao = new UsuarioDAO();
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            validar_csrf();
+            $id = post_int('id');
+            $acao = post_str('acao');
+            if ($acao === 'cancelar') {
+                $ok = $dao->cancelarPorId($id);
+                flash($ok ? 'ok' : 'erro', $ok ? 'Assinatura cancelada: a conta voltou ao plano gratuito (o histórico fica guardado).' : 'Só dá para cancelar uma assinatura ativa.');
+                redirect('admin/pages/assinaturas.php'.painel_qs());
+            }
+            if ($acao === 'excluir') {
+                $ok = $dao->excluir($id);
+                flash($ok ? 'ok' : 'erro', $ok ? 'Assinatura excluída do histórico.' : 'Assinatura não encontrada.');
+                redirect('admin/pages/assinaturas.php'.painel_qs());
+            }
+            if ($acao === 'conceder') {
+                $u = $usuarioDao->buscarPorId(post_int('usuario_id'));
+                $plano = AssinaturaDAO::PLANO_DO_TIPO[$u['tipo'] ?? ''] ?? null;
+                $dias = post_int('dias', 30);
+                $valor = post_str('valor') === '' ? ($plano ? AssinaturaDAO::PRECOS[$plano] : 0.0) : decimal_ou_null(post_str('valor'));
+                $erro = match (true) {
+                    !$u => 'Escolha a conta.',
+                    !$plano => 'Só contas de candidato ou de empresa têm plano.',
+                    !(int)$u['ativo'] => 'Esta conta está bloqueada: ative-a antes de conceder um plano.',
+                    $dias < 1 || $dias > 3660 => 'Informe a duração entre 1 e 3660 dias.',
+                    $valor === null || $valor < 0 || $valor > 99999.99 => 'Informe um valor válido (0 ou mais; vazio = preço do plano).',
+                    default => '',
+                };
+                $anterior = $u ? $dao->buscarAtivaPorUsuario((int)$u['id']) : null;
+                $ok = $erro === '' && $dao->assinar((int)$u['id'], $plano, (float)$valor, $dias);
+                flash($ok ? 'ok' : 'erro', $ok ? ($plano === 'empresa' ? 'Empresa Premium' : 'Candidato VIP').' concedido a '.$u['nome'].' por '.$dias.' dias.'.($anterior ? ' A assinatura que estava ativa (#'.(int)$anterior['id'].') foi cancelada e fica no histórico.' : '') : ($erro ?: 'Não foi possível conceder o plano.'));
+                redirect('admin/pages/assinaturas.php'.painel_qs());
+            }
+            // Editar
+            $d = ['valor' => decimal_ou_null(post_str('valor')), 'data_inicio' => data_ou_null(post_str('data_inicio')), 'data_fim' => data_ou_null(post_str('data_fim')),
+                  'status' => enum_val(post_str('status'), AssinaturaDAO::STATUS, '')];
+            $erro = $dao->atualizar($id, $d);
+            flash($erro === '' ? 'ok' : 'erro', $erro === '' ? 'Assinatura atualizada.' : $erro);
+            redirect('admin/pages/assinaturas.php'.painel_qs($erro !== '' ? ['edit' => $id] : []));
+        }
+
+        $edit = registro_encontrado(get_str('edit') !== '' ? $dao->buscar((int)get_str('edit')) : null, 'edit', 'admin/pages/assinaturas.php', 'Assinatura não encontrada (pode ter sido excluída).');
+        $filtroPlano = enum_val(get_str('plano'), AssinaturaDAO::PLANOS, '');
+        $filtroStatus = enum_val(get_str('status'), AssinaturaDAO::STATUS, '');
+        $busca = get_str('q');
+        $filtroUsuario = (int)get_str('usuario_id');
+        $todas = $dao->listarTodas();
+        $lista = $dao->listarTodas(['plano' => $filtroPlano, 'status' => $filtroStatus, 'q' => $busca, 'usuario_id' => $filtroUsuario]);
+        [$ordem, $dir] = lista_ordem(['id', 'usuario_nome', 'plano', 'valor', 'data_inicio', 'data_fim', 'status'], 'id', 'desc');
+        $totalLista = count($lista);
+        [$lista, $pagina, $paginas] = paginar(ordenar_linhas($lista, $ordem, $dir), 25);
+        $resumo = $dao->resumoPorPlano();
+        $contas = array_values(array_filter($usuarioDao->listar(), fn($u) => isset(AssinaturaDAO::PLANO_DO_TIPO[$u['tipo']]) && (int)$u['ativo']));
+        usort($contas, fn($a, $b) => strcasecmp((string)$a['nome'], (string)$b['nome']));
+        $title = 'Assinaturas';
+        $abaAtiva = 'assinaturas';
+        $this->view('admin/assinaturas', get_defined_vars());
     }
 
     /** admin/pages/categorias.php — CRUD de categorias (áreas de vagas e de cursos). */
@@ -158,7 +226,7 @@ final class AdminController extends Controller {
             redirect('admin/pages/categorias.php'.painel_qs(!$ok && $id ? ['edit' => $id] : []));
         }
 
-        $edit = get_str('edit') !== '' ? $dao->buscar((int)get_str('edit')) : null;
+        $edit = registro_encontrado(get_str('edit') !== '' ? $dao->buscar((int)get_str('edit')) : null, 'edit', 'admin/pages/categorias.php', 'Categoria não encontrada (pode ter sido excluída).');
         $filtroTipo = enum_val(get_str('tipo'), CategoriaDAO::TIPOS, '');
         $busca = get_str('q');
         $buscaN = Competencias::normalizar($busca);
@@ -315,7 +383,7 @@ final class AdminController extends Controller {
             }
         }
 
-        $edit = get_str('edit') !== '' ? $dao->buscar((int)get_str('edit')) : null;
+        $edit = registro_encontrado(get_str('edit') !== '' ? $dao->buscar((int)get_str('edit')) : null, 'edit', 'admin/pages/cursos.php', 'Conteúdo não encontrado (pode ter sido excluído).');
         // "Novo e-book" / "Novo vídeo" (?novo=ebook): o formulário já vem no formato escolhido.
         $novoTipo = enum_val(get_str('novo') ?: get_str('tipo'), CursoDAO::TIPOS, 'curso');
         $form ??= $edit ?? ['id' => 0, 'categoria_id' => null, 'titulo' => '', 'descricao' => '', 'tipo' => $novoTipo, 'modalidade' => 'ead', 'nivel' => 'iniciante', 'duracao' => '', 'gratuito' => 1, 'preco' => null, 'url' => '', 'imagem' => '', 'instituicao' => '', 'ativo' => 1];

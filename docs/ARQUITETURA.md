@@ -70,7 +70,7 @@ View: layouts/header.php + vagas/lista.php + layouts/footer.php  ──► HTML
 | `PerfilController` | meu perfil, salvar perfil, portfólio, recalcular match |
 | `CurriculoController` | envio do currículo (extração), aplicar dados do relatório, excluir currículo |
 | `ArquivoController` | imagens enviadas (`assets/uploads/...`), download do currículo (`download.php`) |
-| `AdminController` | painel (`admin/index.php`), usuários, categorias, cursos |
+| `AdminController` | painel (`admin/index.php`), usuários, categorias, cursos, assinaturas |
 | `AprendizadoController` | painel "Aprendizado da máquina" (`admin/pages/aprendizado.php`) |
 | `AprendeComRevisao` (*trait*) | usada pelos controllers com extração: guarda a sugestão da máquina e aprende quando o formulário é salvo |
 | `EmpresaController` | vagas (com extração), candidaturas recebidas, banco de talentos, perfil da empresa |
@@ -153,6 +153,7 @@ Definida em `public/index.php`. As rotas aceitam GET (mostrar) e POST (enviar fo
 | `admin/pages/usuarios.php` | `AdminController::usuarios` | `admin/usuarios` | admin |
 | `admin/pages/categorias.php` | `AdminController::categorias` | `admin/categorias` | admin |
 | `admin/pages/cursos.php` | `AdminController::cursos` | `admin/cursos` | admin |
+| `admin/pages/assinaturas.php` | `AdminController::assinaturas` | `admin/assinaturas` | admin |
 | `admin/pages/aprendizado.php` | `AprendizadoController::painel` | `admin/aprendizado` | admin |
 | `admin/pages/vagas.php` | `EmpresaController::vagas` | `admin/vagas` | empresa (suas vagas) e admin |
 | `admin/pages/candidaturas.php` | `EmpresaController::candidaturas` | `admin/candidaturas` | empresa e admin |
@@ -229,10 +230,20 @@ do conteúdo, "Outros" do mesmo formato (`pt_secao_formato()` em `partials/compo
 
 Nada é gravado sem revisão: a extração de vagas e cursos só preenche o formulário (ou a prévia da importação).
 
-**Tabelas do painel (CRUD)**: usuários, categorias, cursos/e-books/vídeos e vagas têm colunas ordenáveis
+**Tabelas do painel (CRUD)**: usuários, categorias, cursos/e-books/vídeos, assinaturas e vagas têm colunas ordenáveis
 (`painel_th()`: clicar ordena, clicar de novo inverte), filtros e paginação (`painel_paginacao()`); candidaturas e
 banco de talentos têm "Ordem:" no filtro. A lógica fica em `app/Core/helpers.php` (`lista_ordem()`, `ordenar_linhas()`,
 `paginar()`, `painel_qs()`) — as ações (salvar, publicar, excluir) voltam para a mesma aba, filtros, ordem e página.
+Abrir "Editar"/"Ver" de um registro que não existe mais avisa e volta para a lista (`registro_encontrado()`).
+
+**Assinaturas** (painel → Assinaturas, só administrador): concede o plano da conta (candidato → Candidato VIP,
+empresa → Empresa Premium) por N dias, edita valor/datas/situação, cancela (mantém o histórico) e exclui. Cada conta
+tem no máximo uma assinatura ativa; se a empresa perde o Premium, o destaque das vagas sai. Os preços ficam em
+`AssinaturaDAO::PRECOS` (os mesmos de `planos.php`). A ficha do usuário liga para as assinaturas e as vagas da conta.
+
+**Vitrine rotativa da página inicial**: vagas, cursos e e-books mostram 5 cartões e trocam um por vez com os
+demais da fila (`[data-rotativo]` em `app.js`), cada seção num ritmo (4,5 s, 5,2 s e 5,9 s) para não trocarem juntas;
+pausa com o mouse/foco em cima, no botão "Pausar" ou para quem prefere menos movimento.
 
 **Aprendizado de máquina**: as regras acima são a base. Linhas soltas do anúncio, área da vaga/curso, empresa ou
 instituição não reconhecida e linhas do currículo sem título de seção também passam pela `MaquinaAprendizado`

@@ -114,7 +114,7 @@ $cartazNoForm = !empty($form['imagem']) && str_starts_with((string)$form['imagem
     </form>
 </div>
 
-<form class="filtros" method="get" action="#lista-vagas" style="grid-template-columns:2fr 1fr auto">
+<form class="filtros" method="get" action="#lista-vagas" style="grid-template-columns:<?=isAdmin() ? '2fr 1fr 1fr auto' : '2fr 1fr auto'?>">
     <?php if (get_str('ordem') !== ''): ?><input type="hidden" name="ordem" value="<?=e($ordem)?>"><input type="hidden" name="dir" value="<?=e($dir)?>"><?php endif; ?>
     <input name="q" placeholder="Buscar por título, empresa ou cidade" value="<?=e($busca)?>" aria-label="Buscar por título, empresa ou cidade">
     <select name="status" aria-label="Situação da vaga">
@@ -123,9 +123,10 @@ $cartazNoForm = !empty($form['imagem']) && str_starts_with((string)$form['imagem
             <option value="<?=$st?>" <?=$filtroStatus === $st ? 'selected' : ''?>><?=$rot?> (<?=(int)($porSituacao[$st] ?? 0)?>)</option>
         <?php endforeach; ?>
     </select>
+    <?php if (isAdmin()): ?><select name="empresa" aria-label="Empresa"><option value="">Todas as empresas</option><?php foreach ($empresas as $emp): ?><option value="<?=(int)$emp['id']?>" <?=$filtroEmpresa === (int)$emp['id'] ? 'selected' : ''?>><?=e($emp['nome_fantasia'] ?: $emp['nome'])?></option><?php endforeach; ?></select><?php endif; ?>
     <button class="btn">Filtrar</button>
 </form>
-<div class="pn-contagem" id="lista-vagas"><h2><?=isAdmin() ? 'Vagas cadastradas' : 'Suas vagas'?></h2><span><?=gf_num($totalLista)?> <?=gf_plural($totalLista, 'vaga', 'vagas')?><?=$paginas > 1 ? ' · página '.$pagina.' de '.$paginas : ''?><?=$filtroStatus !== '' || $busca !== '' ? ' · <a href="'.e(url('admin/pages/vagas.php')).'#lista-vagas">limpar filtros</a>' : ''?></span></div>
+<div class="pn-contagem" id="lista-vagas"><h2><?=isAdmin() ? 'Vagas cadastradas' : 'Suas vagas'?></h2><span><?=gf_num($totalLista)?> <?=gf_plural($totalLista, 'vaga', 'vagas')?><?=$paginas > 1 ? ' · página '.$pagina.' de '.$paginas : ''?><?=$filtroStatus !== '' || $busca !== '' || $filtroEmpresa ? ' · <a href="'.e(url('admin/pages/vagas.php')).'#lista-vagas">limpar filtros</a>' : ''?></span></div>
 <div class="table-wrap"><table class="table">
     <tr><?=painel_th('titulo', 'Vaga', $ordem, $dir)?><?php if (isAdmin()): ?><?=painel_th('empresa_nome', 'Empresa', $ordem, $dir)?><?php endif; ?><?=painel_th('situacao', 'Situação', $ordem, $dir)?><?=isAdmin() ? '<th class="num">Candidaturas</th>' : painel_th('total_candidaturas', 'Candidaturas', $ordem, $dir, 'num')?><?=painel_th('visualizacoes', 'Visualizações', $ordem, $dir, 'num')?><?=painel_th('created_at', 'Publicada em', $ordem, $dir)?><th>Ações</th></tr>
     <?php foreach ($lista as $x):
@@ -152,5 +153,5 @@ $cartazNoForm = !empty($form['imagem']) && str_starts_with((string)$form['imagem
     <?php endforeach; ?>
 </table></div>
 <?=painel_paginacao($pagina, $paginas)?>
-<?php if (!$lista): ?><div class="empty"><?=$filtroStatus !== '' || $busca !== '' ? 'Nenhuma vaga com esses filtros.' : 'Nenhuma vaga cadastrada ainda. Use a extração acima para publicar a primeira em segundos.'?></div><?php endif; ?>
+<?php if (!$lista): ?><div class="empty"><?=$filtroStatus !== '' || $busca !== '' || $filtroEmpresa ? 'Nenhuma vaga com esses filtros.' : 'Nenhuma vaga cadastrada ainda. Use a extração acima para publicar a primeira em segundos.'?></div><?php endif; ?>
 </div>

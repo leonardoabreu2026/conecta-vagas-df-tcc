@@ -11,7 +11,7 @@ final class HomeController extends Controller {
      *  2. quem somos;
      *  3. vagas de emprego (cartões no formato de notícia curta);
      *  4. assinaturas (faixa no meio da página);
-     *  5. cursos, e-books e vídeos — cada formato na sua seção (mesmo cartão das vagas).
+     *  5. cursos, e-books e vídeos — cada formato na sua seção, com o mesmo cartão e a mesma vitrine rotativa das vagas.
      */
     public function index(): void {
         $vagas = []; $cursos = []; $dbErro = null;
@@ -37,9 +37,15 @@ final class HomeController extends Controller {
         $vagasCapa = array_slice($vagas, 0, 5);
         $vagasFila = array_slice($vagas, 5);
         $totalVagas = count($vagas);
-        // Conteúdos separados por formato: uma seção de cursos, outra de e-books e outra de vídeos (5 cartões cada).
-        $conteudosCapa = [];
-        foreach (CursoDAO::TIPOS as $t) $conteudosCapa[$t] = array_slice(array_values(array_filter($cursos, fn($c) => $c['tipo'] === $t)), 0, 5);
+        // Conteúdos separados por formato (cursos, e-books, vídeos), cada um com a MESMA vitrine rotativa das vagas:
+        // 5 cartões na tela (os mais novos) e os demais na fila, entrando um a um.
+        $conteudosCapa = []; $conteudosFila = []; $totalConteudos = [];
+        foreach (CursoDAO::TIPOS as $t) {
+            $doFormato = array_values(array_filter($cursos, fn($c) => $c['tipo'] === $t));
+            $conteudosCapa[$t] = array_slice($doFormato, 0, 5);
+            $conteudosFila[$t] = array_slice($doFormato, 5);
+            $totalConteudos[$t] = count($doFormato);
+        }
 
         // Carrossel: todas as imagens da pasta public/assets/img/brasilia/ (basta trocar os arquivos).
         // Créditos das fotos de teste (Wikimedia Commons, licenças livres).

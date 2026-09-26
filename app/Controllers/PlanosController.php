@@ -26,7 +26,7 @@ final class PlanosController extends Controller {
                     redirect('planos.php');
                 }
                 if ($dao->isCandidatoVip($usuarioId)) { flash('info', 'Seu plano VIP já está ativo.'); redirect('planos.php'); }
-                $ok = $dao->assinar($usuarioId, 'assinante', 9.90, 30);
+                $ok = $dao->assinar($usuarioId, 'assinante', AssinaturaDAO::PRECOS['assinante'], 30);
                 if ($ok) {
                     flash('ok', '🎉 Parabéns! Sua assinatura VIP de Candidato foi ativada com sucesso por 30 dias. Aproveite as vantagens!');
                 } else {
@@ -41,7 +41,7 @@ final class PlanosController extends Controller {
                     redirect('planos.php');
                 }
                 if ($dao->isEmpresaPremium($usuarioId)) { flash('info', 'O plano Empresa Premium já está ativo.'); redirect('planos.php'); }
-                $ok = $dao->assinar($usuarioId, 'empresa', 49.90, 30);
+                $ok = $dao->assinar($usuarioId, 'empresa', AssinaturaDAO::PRECOS['empresa'], 30);
                 if ($ok) {
                     flash('ok', '🎉 Parabéns! O plano Empresa Premium foi ativado com sucesso por 30 dias. Vagas ilimitadas e banco de talentos liberados!');
                 } else {

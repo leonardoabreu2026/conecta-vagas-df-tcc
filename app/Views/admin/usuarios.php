@@ -22,7 +22,7 @@
         </div>
     </div>
     <dl class="pn-ficha-dados">
-        <?php if ($ver['tipo'] === 'empresa'): ?>
+        <?php if ($ver['tipo'] === 'empresa' && $ver['perfil_id']): ?>
             <div><dt>Nome fantasia</dt><dd><?=e($ver['nome_fantasia'] ?: '—')?></dd></div>
             <div><dt>Setor</dt><dd><?=e($ver['setor'] ?: '—')?></dd></div>
             <div><dt>Vagas publicadas</dt><dd><?=(int)$ver['total_vagas']?></dd></div>
@@ -37,9 +37,11 @@
         <div><dt>Último acesso</dt><dd><?=$ver['ultimo_acesso'] ? date('d/m/Y H:i', strtotime((string)$ver['ultimo_acesso'])) : 'Nunca entrou'?></dd></div>
     </dl>
     <div class="form-actions">
-        <a class="btn btn-sm btn-outline" href="?edit=<?=(int)$ver['id']?>#form-usuario">Editar</a>
+        <a class="btn btn-sm btn-outline" href="<?=e(painel_qs(['edit' => (int)$ver['id']]))?>#form-usuario">Editar</a>
         <?php if ($ver['tipo'] === 'candidato' && $ver['perfil_id']): ?><a class="btn btn-sm btn-outline" href="<?=url('view/perfil/portfolio.php?id='.(int)$ver['perfil_id'])?>" target="_blank" rel="noopener">Ver portfólio<span class="sr-only"> (abre em nova aba)</span></a><?php endif; ?>
-        <a class="btn btn-sm btn-outline" href="<?=url('admin/pages/usuarios.php')?>">Fechar</a>
+        <?php if ($ver['tipo'] === 'empresa'): ?><a class="btn btn-sm btn-outline" href="<?=url('admin/pages/vagas.php?empresa='.(int)$ver['perfil_id'])?>#lista-vagas">Vagas da empresa (<?=(int)$ver['total_vagas']?>)</a><?php endif; ?>
+        <?php if ($ver['tipo'] !== 'admin'): ?><a class="btn btn-sm btn-outline" href="<?=url('admin/pages/assinaturas.php?usuario_id='.(int)$ver['id'])?>#lista-assinaturas"><?=$ver['plano_ativo'] ? 'Assinaturas' : 'Assinaturas / conceder plano'?></a><?php endif; ?>
+        <a class="btn btn-sm btn-outline" href="<?=e(url('admin/pages/usuarios.php').painel_qs())?>">Fechar</a>
     </div>
 </section>
 <?php endif; ?>

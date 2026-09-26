@@ -2,7 +2,8 @@
 /**
  * Página inicial (rota index.php): banner com busca, vagas, assinaturas, cursos e os painéis relâmpago
  * (quem somos, objetivo, missão, valores e planos) que aparecem de tempos em tempos no canto da tela.
- * Recebe de HomeController::index(): $dbErro, $slides, $creditos, $vagasCapa, $conteudosCapa (por formato),
+ * Recebe de HomeController::index(): $dbErro, $slides, $creditos, $vagasCapa/$vagasFila/$totalVagas (vitrine rotativa),
+ * $conteudosCapa/$conteudosFila/$totalConteudos (por formato, mesma vitrine rotativa das vagas),
  * $mapaMatch (% de match por vaga), $minhas (candidaturas do candidato) e $plano (assinatura ativa).
  */
 ?>
@@ -78,18 +79,25 @@
 
 <?php
 // Cursos, e-books e vídeos em seções separadas; e-books e vídeos só aparecem quando houver algum publicado.
+// Mesma vitrine rotativa das vagas; cada seção num ritmo próprio, para os cartões não trocarem todos juntos.
 $secoesConteudo = [
-  'curso' => ['formatura', 'Cursos Gratuitos', 'Capacitação gratuita para aumentar o seu match com as vagas', 'Ver todos os cursos'],
-  'ebook' => ['ebooks', 'E-books', 'Guias e materiais para ler no seu ritmo', 'Ver todos os e-books'],
-  'video' => ['play', 'Vídeos', 'Aulas e conteúdos em vídeo para aprender na prática', 'Ver todos os vídeos'],
+  'curso' => ['formatura', 'Cursos Gratuitos', 'Capacitação gratuita para aumentar o seu match com as vagas', 'Ver todos os cursos', 'Os cursos se revezam aqui', 'cursos', 5200],
+  'ebook' => ['ebooks', 'E-books', 'Guias e materiais para ler no seu ritmo', 'Ver todos os e-books', 'Os e-books se revezam aqui', 'e-books', 5900],
+  'video' => ['play', 'Vídeos', 'Aulas e conteúdos em vídeo para aprender na prática', 'Ver todos os vídeos', 'Os vídeos se revezam aqui', 'vídeos', 6600],
 ];
-foreach ($secoesConteudo as $t => [$ic, $tit, $sub, $ver]):
-  if ($t !== 'curso' && !$conteudosCapa[$t]) continue; ?>
+foreach ($secoesConteudo as $t => [$ic, $tit, $sub, $ver, $reveza, $unidade, $ritmo]):
+  if ($t !== 'curso' && !$conteudosCapa[$t]) continue;
+  $fila = $conteudosFila[$t]; ?>
 <section class="cv-secao">
   <div class="cv-wrap">
     <?=cv_titulo_secao($ic, $tit, $sub, pt_secao_formato($t)[1], $ver)?>
     <?php if ($conteudosCapa[$t]): ?>
-      <div class="cv-grade"><?php foreach ($conteudosCapa[$t] as $c): ?><?=cv_card_curso($c)?><?php endforeach; ?></div>
+      <?php if ($fila): ?>
+        <p class="cv-rotativo-info"><span><?=icone('raio', 13)?> <?=e($reveza)?>: <?=(int)$totalConteudos[$t]?> <?=e($unidade)?> passando pela vitrine.</span>
+          <button type="button" class="cv-rotativo-pausa" data-rotativo-pausa aria-pressed="false">Pausar</button></p>
+      <?php endif; ?>
+      <div class="cv-grade"<?=$fila ? ' data-rotativo="'.(int)$ritmo.'" aria-live="off"' : ''?>><?php foreach ($conteudosCapa[$t] as $c): ?><?=cv_card_curso($c)?><?php endforeach; ?></div>
+      <?php if ($fila): ?><template data-rotativo-fila><?php foreach ($fila as $c): ?><?=cv_card_curso($c)?><?php endforeach; ?></template><?php endif; ?>
     <?php elseif (!$dbErro): ?>
       <div class="empty">Nenhum curso publicado ainda.</div>
     <?php endif; ?>

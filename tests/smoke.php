@@ -295,7 +295,8 @@ if ($status('') === 0) {
               'cursos.php?pagina=99' => 200, 'cursos.php?tipo=xyz' => 200,
               'planos.php' => 200, 'login.php' => 200, 'cadastro.php' => 200, 'esqueci_senha.php' => 200, 'contrato.php' => 200,
               'assets/css/app.css' => 200, 'vaga.php?id=999999' => 404, 'nao-existe.php' => 404,
-              'view/perfil/index.php' => 302, 'admin/index.php' => 302, 'admin/pages/aprendizado.php' => 302, 'download.php?id=1' => 302] as $caminho => $esperado) {
+              'view/perfil/index.php' => 302, 'admin/index.php' => 302, 'admin/pages/aprendizado.php' => 302,
+              'admin/pages/assinaturas.php' => 302, 'download.php?id=1' => 302] as $caminho => $esperado) {
         $s = $status($caminho);
         confere(sprintf('%-24s → %d', $caminho === '' ? '/' : $caminho, $esperado), $s === $esperado, "recebeu $s");
     }
@@ -312,6 +313,13 @@ if ($status('') === 0) {
     confere('e-books com a capa em pé, sem cartão sem imagem', str_contains($html, 'cv-card-ebook') && str_contains($html, 'an-cartaz') && !str_contains($html, 'cv-img-vazia'));
     preg_match('#<nav id="menu-principal".*?</nav>#s', $html, $menu);
     confere('menu sem item "Vídeos" e sem aba de vídeos vazia', ($menu[0] ?? '') !== '' && !str_contains($menu[0], 'Vídeos') && !preg_match('#Vídeos <small>\(0\)#u', $html));
+    // Página inicial: vagas, cursos e e-books na mesma vitrine rotativa (5 na tela + fila), cada uma no seu ritmo.
+    $status('');
+    preg_match_all('#data-rotativo="(\d+)"#', $html, $rit);
+    $filas = substr_count($html, '<template data-rotativo-fila>');
+    confere('início: vitrine rotativa nas vagas, nos cursos e nos e-books (ritmos diferentes)', count($rit[1]) >= 3 && $filas === count($rit[1])
+        && count(array_unique($rit[1])) === count($rit[1]) && str_contains($html, 'Os cursos se revezam aqui') && str_contains($html, 'Os e-books se revezam aqui'),
+        count($rit[1]).' vitrine(s): '.implode(', ', $rit[1]));
     foreach (['config/config.php', 'config/cacert.pem', 'app/Core/Database.php', 'database/schema.sql', 'storage/.gitkeep', 'tests/smoke.php'] as $interno) {
         $s = $status($interno);
         confere(sprintf('%-24s bloqueado', $interno), in_array($s, [403, 404], true), "recebeu $s");
