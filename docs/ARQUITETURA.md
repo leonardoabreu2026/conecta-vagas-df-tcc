@@ -315,7 +315,10 @@ volta para a mesma lista filtrada (`volta_filtros()`).
 - Limite de tentativas de login (tabela `tentativas_login`): 8 senhas erradas para o mesmo e-mail a partir do
   mesmo IP (20 somando todos os IPs, ou 60 de um mesmo IP) em 5 minutos pausam o login por 5 minutos; a tela
   avisa quando faltam 3. Mensagem única e mesmo tempo de resposta, para não revelar quais e-mails existem.
-  Espaços no começo/fim da senha são tolerados. Ajustes em `config/config.php`.
+  Tolerância a erros comuns (`UsuarioDAO::variantesSenha`): espaços nas pontas, primeira letra na caixa
+  trocada e Caps Lock ligado — no máximo 4 conferências, também feitas para e-mail inexistente (mesmo tempo
+  de resposta). No ambiente local (DEBUG) a tela diz o motivo exato (sem conta, senha incorreta, conta
+  desativada); em produção a mensagem continua única. Ajustes em `config/config.php`.
 - O hash da senha só é refeito se o algoritmo mudar (nunca por custo do bcrypt): refazer muda o hash, e a
   sessão entende hash novo como "senha alterada", o que derrubaria as outras sessões abertas da conta.
 - `database/resetar_senhas.php` (só terminal) volta as contas de teste às senhas do README e libera o login.

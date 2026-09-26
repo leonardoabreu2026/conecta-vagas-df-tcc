@@ -145,15 +145,38 @@ final class UsuarioDAO {
         return $s->fetch() ?: null;
     }
 
+    /** Por que o último autenticar() falhou: 'sem_conta', 'desativada' ou 'senha' (a tela só detalha no ambiente local). */
+    public string $motivoFalha = '';
+
+    /**
+     * Variações aceitas da senha digitada (tolerância a erros comuns, como fazem os grandes sites):
+     * a própria senha, sem espaços nas pontas, com a 1ª letra na caixa trocada ("admin@123" → "Admin@123",
+     * celular que põe maiúscula sozinho) e com o Caps Lock ligado ("aDMIN@123"). Sempre no máximo 4.
+     * @return list<string>
+     */
+    public static function variantesSenha(string $senha): array {
+        $t = trim($senha);
+        $trocar = fn(string $c) => mb_strtoupper($c) === $c ? mb_strtolower($c) : mb_strtoupper($c);
+        $primeira = $t === '' ? '' : $trocar(mb_substr($t, 0, 1)).mb_substr($t, 1);
+        $capsLock = implode('', array_map($trocar, mb_str_split($t)));
+        return array_values(array_unique(array_filter([$senha, $t, $primeira, $capsLock], fn($v) => $v !== '')));
+    }
+
     public function autenticar(string $email, string $senha): array|false {
+        $this->motivoFalha = '';
         $u = $this->buscarPorEmail($email);
+        $variantes = self::variantesSenha($senha);
         if (!$u) {
             // Gasta o mesmo tempo de um login real: o tempo de resposta não revela quais e-mails existem.
-            password_verify($senha, '$2y$10$uiTuTWeHZjGisseAQFKgOOZrIqsMAT2p5wAY886sw.TAw7x5bae56');
+            foreach ($variantes as $v) password_verify($v, '$2y$10$uiTuTWeHZjGisseAQFKgOOZrIqsMAT2p5wAY886sw.TAw7x5bae56');
+            $this->motivoFalha = 'sem_conta';
             return false;
         }
-        // Tolerância: espaço digitado sem querer no começo/fim da senha (colar, corretor do celular) não impede o login.
-        $confere = password_verify($senha, $u['senha']) || (trim($senha) !== $senha && trim($senha) !== '' && password_verify(trim($senha), $u['senha']));
+        $certa = null;
+        foreach ($variantes as $v) if (password_verify($v, $u['senha'])) { $certa = $v; break; }
+        $confere = $certa !== null;
+        if (!$confere) $this->motivoFalha = 'senha';
+        elseif ((int)$u['ativo'] !== 1) $this->motivoFalha = 'desativada';
         if ((int)$u['ativo'] === 1 && $confere) {
             $db = Database::getConexao();
             $db->prepare("UPDATE usuarios SET ultimo_acesso=NOW() WHERE id=?")->execute([$u['id']]);
@@ -161,7 +184,7 @@ final class UsuarioDAO {
             // e a sessão entende hash novo como "senha alterada" — derrubaria as outras sessões abertas da conta.
             if ((password_get_info($u['senha'])['algo'] ?? null) !== PASSWORD_DEFAULT) {
                 // Devolve o hash novo: é dele que a sessão tira a "marca" da senha (ver iniciar_sessao_usuario).
-                $u['senha'] = password_hash(password_verify($senha, $u['senha']) ? $senha : trim($senha), PASSWORD_DEFAULT);
+                $u['senha'] = password_hash($certa, PASSWORD_DEFAULT);
                 $db->prepare("UPDATE usuarios SET senha=? WHERE id=?")->execute([$u['senha'], $u['id']]);
             }
             return $u;

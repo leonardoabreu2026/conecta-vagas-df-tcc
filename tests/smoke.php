@@ -260,6 +260,10 @@ try {
     $senhasReadme = ['admin@conectavagas.com' => 'Admin@123', 'empresa@conectavagas.com' => 'Empresa@123', 'candidato@conectavagas.com' => 'Candidato@123'];
     $naoEntram = [];
     foreach ($senhasReadme as $em => $sn) { $u = (new UsuarioDAO())->buscarPorEmail($em); if (!$u || !(int)$u['ativo'] || !password_verify($sn, (string)$u['senha'])) $naoEntram[] = $em; }
+    $hAdmin = (string)((new UsuarioDAO())->buscarPorEmail('admin@conectavagas.com')['senha'] ?? '');
+    $aceita = fn(string $digitada) => (bool)array_filter(UsuarioDAO::variantesSenha($digitada), fn($v) => password_verify($v, $hAdmin));
+    confere('login tolera 1ª letra trocada, Caps Lock e espaços, mas não outra senha', $aceita('admin@123') && $aceita('aDMIN@123') && $aceita(' Admin@123 ')
+        && !$aceita('admin@1234') && !$aceita('ADMIN@123x') && count(UsuarioDAO::variantesSenha('Abc')) <= 4);
     confere('contas de teste entram com as senhas do README', !$naoEntram, implode(', ', $naoEntram).' → rode: C:\xampp\php\php.exe database\resetar_senhas.php');
     confere('vagas abertas listadas pelo VagaDAO', count((new VagaDAO())->listar(true)) > 0);
     $cruzadas = (int)$db->query("SELECT COUNT(*) FROM vagas v JOIN categorias c ON c.id=v.categoria_id WHERE c.tipo<>'vaga'")->fetchColumn()

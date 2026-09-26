@@ -46,8 +46,12 @@ Troque as senhas antes de publicar o sistema.
 
 ### Não consegue entrar?
 
-- **Confira o que foi digitado** com o botão do olho, ao lado do campo de senha. A senha diferencia
-  maiúsculas de minúsculas (`Admin@123`, não `admin@123`); espaços no começo ou no fim são ignorados.
+- **Confira o que foi digitado** com o botão do olho, ao lado do campo de senha. O login tolera os erros mais
+  comuns: primeira letra trocada (`admin@123` entra como `Admin@123`), Caps Lock ligado (`aDMIN@123`) e
+  espaços no começo ou no fim.
+- **No ambiente local** (acesso pelo próprio computador) a mensagem diz o motivo exato: e-mail sem conta,
+  senha incorreta ou conta desativada. Acessando de outra máquina ou com `APP_DEBUG=0`, a mensagem é única
+  (não revela quais e-mails têm conta).
 - **Login em pausa**: depois de **8 senhas erradas** para o mesmo e-mail (a tela avisa quando faltam 3), o
   login daquele e-mail pausa por **5 minutos** e libera sozinho. Os limites ficam em `config/config.php`
   (`LOGIN_MAX_TENTATIVAS`, `LOGIN_JANELA_MINUTOS`).

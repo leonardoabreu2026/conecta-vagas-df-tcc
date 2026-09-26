@@ -39,8 +39,15 @@ final class AuthController extends Controller {
         if (!$u) {
             $dao->registrarFalhaLogin($ip, $email);
             // Mensagem única: não revela se o e-mail existe. Avisa quando está perto da pausa de segurança.
+            // No ambiente local (DEBUG, acesso pelo próprio computador) diz o motivo exato, para facilitar os testes.
             $restam = $dao->tentativasRestantes($ip, $email);
-            flash('erro', 'E-mail ou senha inválidos ou conta desativada.'.($restam <= 3
+            $motivo = DEBUG ? match ($dao->motivoFalha) {
+                'sem_conta' => 'Não existe conta com o e-mail '.$email.'. Crie a conta em "Criar conta" ou use uma das contas de teste.',
+                'desativada' => 'Esta conta está desativada. Um administrador pode reativá-la em Painel → Usuários.',
+                'senha' => 'Senha incorreta para '.$email.'.',
+                default => 'E-mail ou senha inválidos ou conta desativada.',
+            }.' (Detalhe mostrado só no ambiente local.)' : 'E-mail ou senha inválidos ou conta desativada.';
+            flash('erro', $motivo.($restam <= 3
                 ? ' '.($restam === 0 ? 'Login pausado por '.LOGIN_JANELA_MINUTOS.' minutos por segurança.' : 'Restam '.$restam.' '.($restam === 1 ? 'tentativa' : 'tentativas').' antes de uma pausa de '.LOGIN_JANELA_MINUTOS.' minutos.').' Use o olho ao lado da senha para conferir o que foi digitado, ou "Esqueci minha senha".'
                 : ''));
             redirect('login.php'.($voltar ? '?voltar=planos' : ''));
