@@ -12,11 +12,13 @@ declare(strict_types=1);
  *                           a máquina acertou. É daqui que saem os gráficos de acerto do painel.
  *  - aprendizado_provas   : o "período de experiência" de cada modelo — quantas lições novas ele tentou
  *                           adivinhar antes de aprender e quantas acertou (libera o modelo para decidir).
+ *  - aprendizado_calibracao: a temperatura de cada modelo (deixa a confiança honesta, ver Calibracao)
+ *                           e o erro das previsões antes e depois de calibrar.
  *
  * Só SQL: quem transforma texto em palavras e decide o que aprender é a MaquinaAprendizado.
  *
  * As tabelas também estão no database/schema.sql. Se o banco foi criado antes delas existirem,
- * o DAO cria as quatro na primeira vez que precisar (instalar()) — assim nada quebra para quem
+ * o DAO cria as cinco na primeira vez que precisar (instalar()) — assim nada quebra para quem
  * ainda não importou o schema novo.
  */
 final class AprendizadoDAO {
@@ -146,6 +148,7 @@ final class AprendizadoDAO {
             $db = Database::getConexao();
             $db->prepare("DELETE FROM aprendizado_palavras WHERE modelo=?")->execute([$modelo]);
             $db->prepare("DELETE FROM aprendizado_provas WHERE modelo=?")->execute([$modelo]);
+            $db->prepare("DELETE FROM aprendizado_calibracao WHERE modelo=?")->execute([$modelo]);
             $s = $db->prepare("DELETE FROM aprendizado_exemplos WHERE modelo=?");
             $s->execute([$modelo]);
             return $s->rowCount();
@@ -175,6 +178,42 @@ final class AprendizadoDAO {
             Database::getConexao()->prepare("INSERT INTO aprendizado_provas(modelo, provas, acertos) VALUES(?, 1, ?)
                                              ON DUPLICATE KEY UPDATE provas = provas + 1, acertos = acertos + VALUES(acertos)")
                 ->execute([$modelo, $acertou ? 1 : 0]);
+        });
+    }
+
+    // ------------------------------------------------------------------ calibração (temperatura)
+
+    /**
+     * As lições de um modelo na ordem em que chegaram (para a calibração refazer as previsões).
+     * @return list<array{texto:string,classe:string}>
+     */
+    public function licoesDoModelo(string $modelo): array {
+        return $this->comTabelas(function () use ($modelo) {
+            $s = Database::getConexao()->prepare("SELECT texto, classe FROM aprendizado_exemplos WHERE modelo=? AND classe<>? ORDER BY id");
+            $s->execute([$modelo, self::CLASSE_NOME]);
+            return $s->fetchAll();
+        });
+    }
+
+    /** @return array<string,array{temperatura:float,licoes:int,nll_antes:float,nll_depois:float,amostras:int}> */
+    public function calibracoes(): array {
+        return $this->comTabelas(function () {
+            $out = [];
+            foreach (Database::getConexao()->query("SELECT * FROM aprendizado_calibracao")->fetchAll() as $l) {
+                $out[(string)$l['modelo']] = ['temperatura' => (float)$l['temperatura'], 'licoes' => (int)$l['licoes'], 'amostras' => (int)$l['amostras'],
+                                              'nll_antes' => (float)$l['nll_antes'], 'nll_depois' => (float)$l['nll_depois']];
+            }
+            return $out;
+        });
+    }
+
+    /** Guarda (ou troca) a calibração de um modelo. */
+    public function salvarCalibracao(string $modelo, float $temperatura, int $licoes, int $amostras, float $nllAntes, float $nllDepois): void {
+        $this->comTabelas(function () use ($modelo, $temperatura, $licoes, $amostras, $nllAntes, $nllDepois) {
+            Database::getConexao()->prepare("INSERT INTO aprendizado_calibracao(modelo, temperatura, licoes, amostras, nll_antes, nll_depois) VALUES(?,?,?,?,?,?)
+                                             ON DUPLICATE KEY UPDATE temperatura=VALUES(temperatura), licoes=VALUES(licoes), amostras=VALUES(amostras),
+                                             nll_antes=VALUES(nll_antes), nll_depois=VALUES(nll_depois)")
+                ->execute([$modelo, $temperatura, $licoes, $amostras, $nllAntes, $nllDepois]);
         });
     }
 
@@ -349,6 +388,15 @@ final class AprendizadoDAO {
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             INDEX idx_revisao_origem(origem, created_at),
             FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL
+        ) ENGINE=InnoDB");
+        $db->exec("CREATE TABLE IF NOT EXISTS aprendizado_calibracao (
+            modelo VARCHAR(40) NOT NULL PRIMARY KEY,
+            temperatura DECIMAL(8,3) NOT NULL DEFAULT 1,
+            licoes INT NOT NULL DEFAULT 0,
+            amostras INT NOT NULL DEFAULT 0,
+            nll_antes DECIMAL(10,4) NOT NULL DEFAULT 0,
+            nll_depois DECIMAL(10,4) NOT NULL DEFAULT 0,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB");
         $db->exec("CREATE TABLE IF NOT EXISTS aprendizado_provas (
             modelo VARCHAR(40) NOT NULL PRIMARY KEY,

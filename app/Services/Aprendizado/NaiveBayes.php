@@ -24,7 +24,8 @@ declare(strict_types=1);
  * O "+ 1" é a suavização de Laplace: sem ele, uma palavra que nunca apareceu nesta classe (mas
  * apareceu em outra) zeraria a conta desta classe. Usamos logaritmo porque multiplicar muitas probabilidades pequenas dá um número tão
  * perto de zero que o computador arredonda para 0; somando logaritmos isso não acontece.
- * No fim, os pontos viram porcentagens (softmax) — é a "confiança" mostrada na tela.
+ * No fim, os pontos viram porcentagens (softmax) — é a "confiança" mostrada na tela. Antes disso eles
+ * podem ser divididos por uma temperatura (ver Calibracao), que corrige a confiança exagerada.
  *
  * Por que "ingênuo" (naive)? Porque ele supõe que as palavras são independentes entre si, dada a
  * classe. Não é verdade, mas para classificar texto curto costuma funcionar bem, e é rápido e fácil
@@ -80,9 +81,11 @@ final class NaiveBayes {
      * Devolve null quando não dá para opinar: nada aprendido ainda, ou nenhuma palavra do
      * texto foi vista antes (aí a máquina estaria só chutando a classe mais comum).
      *
-     * @return array{classe:string,confianca:float,probabilidades:array<string,float>}|null
+     * @param float $temperatura divide os pontos antes de virarem porcentagem (ver Calibracao); 1 = sem calibrar
+     * @return array{classe:string,confianca:float,probabilidades:array<string,float>,pontos:array<string,float>}|null
+     *         pontos = log P(c) + Σ log P(p|c) de cada classe, antes da temperatura (a Calibracao usa)
      */
-    public function prever(array $palavras): ?array {
+    public function prever(array $palavras, float $temperatura = 1.0): ?array {
         if (!$this->exemplos) return null;
         // Palavras que o modelo nunca viu são ignoradas: não ajudam nenhuma classe.
         $conhecidas = array_values(array_filter($palavras, fn($p) => isset($this->vocabulario[$p])));
@@ -92,16 +95,28 @@ final class NaiveBayes {
         // (string): uma classe só com números ("2024") vira chave inteira no array do PHP.
         foreach ($this->exemplos as $classe => $_) $pontos[(string)$classe] = $this->pontos($conhecidas, (string)$classe);
 
-        // Softmax: transforma os pontos (logaritmos) em porcentagens que somam 100%.
-        // Os pontos são números negativos grandes (ex.: -800) e exp(-800) dá 0 no computador, o que faria
-        // a divisão virar 0/0. Subtraindo o maior, a classe vencedora fica com exp(0) = 1 e as outras entre 0 e 1.
-        $maior = max($pontos);
-        $exp = array_map(fn($v) => exp($v - $maior), $pontos);
+        $prob = self::softmax($pontos, $temperatura);
+        $classe = (string)array_key_first($prob);
+        return ['classe' => $classe, 'confianca' => $prob[$classe], 'probabilidades' => $prob, 'pontos' => $pontos];
+    }
+
+    /**
+     * Softmax com temperatura: transforma os pontos (logaritmos) em porcentagens que somam 100%.
+     * Com temperatura T > 1 os pontos são divididos por T e as porcentagens ficam menos extremas.
+     * Os pontos são números negativos grandes (ex.: -800) e exp(-800) dá 0 no computador, o que faria
+     * a divisão virar 0/0. Subtraindo o maior, a classe vencedora fica com exp(0) = 1 e as outras entre 0 e 1.
+     * @param array<string,float> $pontos
+     * @return array<string,float> classe => probabilidade, da maior para a menor
+     */
+    public static function softmax(array $pontos, float $temperatura = 1.0): array {
+        $t = max($temperatura, 1e-6);
+        $escalados = array_map(fn($v) => $v / $t, $pontos);
+        $maior = max($escalados);
+        $exp = array_map(fn($v) => exp($v - $maior), $escalados);
         $soma = array_sum($exp);
         $prob = array_map(fn($v) => $v / $soma, $exp);
         arsort($prob);
-        $classe = (string)array_key_first($prob);
-        return ['classe' => $classe, 'confianca' => $prob[$classe], 'probabilidades' => $prob];
+        return $prob;
     }
 
     /**

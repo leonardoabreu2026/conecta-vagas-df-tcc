@@ -96,6 +96,15 @@ final class MaquinaAprendizado {
      * pelo menos PRECISAO_MINIMA delas. Com os dados de demonstração, isso libera as linhas do anúncio
      * de vaga (~97% nas provas) e segura a área da vaga (~65%), que ficaria pior do que a regra.
      */
+    /*
+     * CALIBRAÇÃO POR TEMPERATURA (ver Calibracao): as porcentagens do modelo são "esfriadas" por uma
+     * temperatura T, escolhida para minimizar o erro das previsões antigas. Assim a confiança de 80%
+     * passa a querer dizer algo perto de 80% de acerto. A temperatura é recalculada sozinha sempre que o
+     * modelo ganha RECALIBRAR_A_CADA lições novas.
+     */
+    /** De quantas em quantas lições novas a temperatura é recalculada. */
+    public const RECALIBRAR_A_CADA = 10;
+
     /** Provas necessárias antes de o modelo poder ser liberado. */
     public const MIN_PROVAS = 20;
     /** Acerto mínimo nas provas (0 a 1) para o modelo ser liberado. */
@@ -121,6 +130,8 @@ final class MaquinaAprendizado {
     private static array $nomes = [];
     /** @var array<string,array{provas:int,acertos:int}>|null provas dos modelos, carregadas uma vez por requisição */
     private static ?array $provas = null;
+    /** @var array<string,array>|null calibração (temperatura) dos modelos, carregada uma vez por requisição */
+    private static ?array $calibracoes = null;
 
     public static function ligar(bool $ligada = true): void { self::$ligada = $ligada; }
     public static function estaLigada(): bool { return self::$ligada; }
@@ -140,8 +151,14 @@ final class MaquinaAprendizado {
         self::$provas[$modelo] = ['provas' => $provas, 'acertos' => $acertos];
     }
 
+    /** O mesmo para a temperatura de um modelo (testes). */
+    public static function usarTemperatura(string $modelo, float $temperatura): void {
+        self::$calibracoes ??= [];
+        self::$calibracoes[$modelo] = ['temperatura' => $temperatura, 'licoes' => 0, 'amostras' => 0, 'nll_antes' => 0.0, 'nll_depois' => 0.0];
+    }
+
     /** Esquece o que foi carregado nesta requisição (a próxima consulta lê o banco de novo). */
-    public static function limparMemoria(): void { self::$modelos = []; self::$nomes = []; self::$provas = null; }
+    public static function limparMemoria(): void { self::$modelos = []; self::$nomes = []; self::$provas = null; self::$calibracoes = null; }
 
     // ================================================================== 1. EXTRAIR — usar o que aprendeu
 
@@ -177,7 +194,7 @@ final class MaquinaAprendizado {
         $nb = self::modelo($modelo);
         // Mesmo tamanho de texto das lições: o modelo prevê com o mesmo tipo de texto com que aprendeu.
         $palavras = Tokenizador::palavras(mb_substr($texto, 0, self::MAX_TEXTO_LICAO));
-        $p = $nb->prever($palavras);
+        $p = $nb->prever($palavras, self::temperatura($modelo));
         if ($p === null) return null;
         $p['confiante'] = self::confiante($nb, $p);
         $p['pronta'] = $p['confiante'] && self::liberado($modelo);
@@ -314,6 +331,7 @@ final class MaquinaAprendizado {
             }
 
             (new AprendizadoDAO())->registrarRevisao(['origem' => $origem] + $r, $usuarioId);
+            foreach ([$cfg['linhas'][0] ?? null, $cfg['categoria'][0] ?? null] as $m) if ($m) self::calibrarSeNecessario($m);
             self::limparMemoria();   // a próxima leitura já usa o que foi aprendido agora
             return $r;
         } catch (Throwable $e) {
@@ -343,7 +361,7 @@ final class MaquinaAprendizado {
         if (!$palavras || $classe === '' || !isset(self::MODELOS[$modelo])) return false;
         try {
             $nb = self::modelo($modelo);
-            $palpite = $nb->prever($palavras);
+            $palpite = $nb->prever($palavras, self::temperatura($modelo));
             $prova = $palpite !== null && self::confiante($nb, $palpite) ? (string)$palpite['classe'] : null;
 
             $dao = new AprendizadoDAO();
@@ -430,8 +448,70 @@ final class MaquinaAprendizado {
                 }
             }
         }
+        // Com o histórico estudado, cada modelo desta origem ganha a sua temperatura.
+        $modelosDaOrigem = ['vaga' => ['vaga_linha', 'vaga_categoria'], 'curso' => ['curso_categoria'], 'curriculo' => ['curriculo_linha']][$origem] ?? [];
+        foreach ($modelosDaOrigem as $m) self::calibrar($m);
         self::limparMemoria();
         return $n;
+    }
+
+    // ================================================================== calibração (temperatura)
+
+    /** A temperatura do modelo (1 = ainda não calibrado). */
+    public static function temperatura(string $modelo): float {
+        return (float)(self::calibracoes()[$modelo]['temperatura'] ?? 1.0);
+    }
+
+    /**
+     * Dados da calibração de um modelo para o painel (temperatura e erro antes/depois), ou null.
+     * @return array{temperatura:float,licoes:int,amostras:int,nll_antes:float,nll_depois:float}|null
+     */
+    public static function calibracao(string $modelo): ?array {
+        return self::calibracoes()[$modelo] ?? null;
+    }
+
+    /**
+     * Recalcula a temperatura do modelo: refaz as previsões na ordem em que as lições chegaram
+     * (Calibracao::amostrasPrequenciais) e escolhe a temperatura que minimiza o erro delas.
+     * Nunca lança erro; devolve a calibração gravada ou null.
+     */
+    public static function calibrar(string $modelo): ?array {
+        if (!isset(self::MODELOS[$modelo])) return null;
+        try {
+            $dao = new AprendizadoDAO();
+            $licoes = array_map(fn($l) => [Tokenizador::palavras((string)$l['texto']), (string)$l['classe']], $dao->licoesDoModelo($modelo));
+            $amostras = Calibracao::amostrasPrequenciais($licoes, self::MIN_LICOES);
+            $t = Calibracao::temperatura($amostras);
+            $c = ['temperatura' => $t, 'licoes' => count($licoes), 'amostras' => count($amostras),
+                  'nll_antes' => round(Calibracao::nll($amostras, 1.0), 4), 'nll_depois' => round(Calibracao::nll($amostras, $t), 4)];
+            $dao->salvarCalibracao($modelo, $t, $c['licoes'], $c['amostras'], $c['nll_antes'], $c['nll_depois']);
+            self::calibracoes();
+            self::$calibracoes[$modelo] = $c;
+            return $c;
+        } catch (Throwable $e) {
+            self::registrarFalha('calibrar o modelo '.$modelo, $e);
+            return null;
+        }
+    }
+
+    /** Recalibra só se o modelo ganhou RECALIBRAR_A_CADA lições desde a última calibração. */
+    public static function calibrarSeNecessario(string $modelo): void {
+        $ultima = self::calibracao($modelo);
+        $agora = self::modelo($modelo)->totalExemplos();
+        if ($agora >= self::MIN_LICOES && $agora - (int)($ultima['licoes'] ?? 0) >= self::RECALIBRAR_A_CADA) self::calibrar($modelo);
+    }
+
+    /** @return array<string,array> calibrações carregadas uma vez por requisição (vazio se o banco falhar) */
+    private static function calibracoes(): array {
+        if (self::$calibracoes === null) {
+            try {
+                self::$calibracoes = (new AprendizadoDAO())->calibracoes();
+            } catch (Throwable $e) {
+                self::registrarFalha('carregar a calibração dos modelos', $e);
+                self::$calibracoes = [];
+            }
+        }
+        return self::$calibracoes;
     }
 
     // ================================================================== manutenção (painel)
