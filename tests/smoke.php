@@ -133,6 +133,42 @@ $pa = PromptsPesquisa::avulso(["1. https://cartilha.cert.br/", "- Guia Z (SEBRAE
 confere('prompt avulso: links e títulos identificados, numeração e repetidos limpos, até 20', str_contains($pa, '1. https://cartilha.cert.br/ — LINK')
     && str_contains($pa, '2. Guia Z (SEBRAE) — TÍTULO') && !str_contains($pa, '3. https') && str_contains($pa, 'E-BOOKS')
     && count(PromptsPesquisa::entradas(array_map(fn($n) => "Curso $n", range(1, 30)))) === 20);
+// Foto do currículo (padrão de foto): imagens sintéticas — um "retrato" (tons de pele, muitas cores) e um "logotipo".
+if (function_exists('imagecreatetruecolor')) {
+    $retrato = imagecreatetruecolor(120, 160);
+    for ($y = 0; $y < 160; $y++) for ($x = 0; $x < 120; $x++) {
+        $pele = ($x - 60) ** 2 / 900 + ($y - 60) ** 2 / 1600 < 1;   // "rosto" oval no meio
+        imagesetpixel($retrato, $x, $y, $pele ? imagecolorallocate($retrato, 200 + ($x % 20), 150 + ($y % 25), 120 + (($x + $y) % 20)) : imagecolorallocate($retrato, 40 + $x % 60, 60 + $y % 70, 120 + ($x * $y) % 90));
+    }
+    ob_start(); imagepng($retrato); $pngRetrato = (string)ob_get_clean();
+    $logo = imagecreatetruecolor(120, 120); imagefill($logo, 0, 0, imagecolorallocate($logo, 255, 255, 255));
+    imagefilledrectangle($logo, 30, 30, 90, 90, imagecolorallocate($logo, 18, 87, 201));
+    ob_start(); imagepng($logo); $pngLogo = (string)ob_get_clean();
+    // PDF com a mesma foto gravada como FlateDecode (RGB cru) — o formato que o leitor antigo não enxergava.
+    $rgb = '';
+    for ($y = 0; $y < 160; $y++) for ($x = 0; $x < 120; $x++) { $c = imagecolorat($retrato, $x, $y); $rgb .= chr(($c >> 16) & 255).chr(($c >> 8) & 255).chr($c & 255); }
+    $z = (string)gzcompress($rgb);
+    $pdfFoto = "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj\n"
+        ."4 0 obj<</Type/XObject/Subtype/Image/Width 120/Height 160/ColorSpace/DeviceRGB/BitsPerComponent 8/Filter/FlateDecode/Length ".strlen($z).">>stream\n{$z}\nendstream\nendobj\ntrailer<</Root 1 0 R>>\n%%EOF";
+    $tmpPdf = sys_get_temp_dir().DIRECTORY_SEPARATOR.'smoke_foto_'.bin2hex(random_bytes(3)).'.pdf';
+    file_put_contents($tmpPdf, $pdfFoto);
+    $fotoPdf = LeitorDocumento::extrairFoto($tmpPdf);
+    @unlink($tmpPdf);
+    imagedestroy($retrato); imagedestroy($logo);
+    confere('foto do currículo: retrato vence logotipo e a foto compactada do PDF (FlateDecode) é encontrada',
+        LeitorDocumento::pontuacaoFoto($pngRetrato, 120, 160) > 1.0 && LeitorDocumento::pontuacaoFoto($pngLogo, 120, 120) === 0.0
+        && $fotoPdf !== null && $fotoPdf['largura'] === 120 && $fotoPdf['altura'] === 160 && $fotoPdf['ext'] === 'jpg',
+        json_encode(['retrato' => LeitorDocumento::pontuacaoFoto($pngRetrato, 120, 160), 'logo' => LeitorDocumento::pontuacaoFoto($pngLogo, 120, 120), 'pdf' => $fotoPdf ? $fotoPdf['largura'].'x'.$fotoPdf['altura'] : null]));
+}
+// Imagem padrão (cadastro sem imagem) e biblioteca (PDF da plataforma → "Baixar"; link da web → "Acessar").
+confere('imagem padrão de cada formato existe e é reconhecida como "trocar imagem"', is_file(PUBLIC_DIR.'/'.CursoDAO::imagemPadrao('curso')) && is_file(PUBLIC_DIR.'/'.CursoDAO::imagemPadrao('ebook'))
+    && is_file(PUBLIC_DIR.'/'.CursoDAO::imagemPadrao('video')) && CursoDAO::ehImagemPadrao('assets/img/padrao/ebook.jpg') && CursoDAO::ehImagemPadrao('') && !CursoDAO::ehImagemPadrao('assets/img/cursos/curso1.png'));
+$acLocal = pt_acesso_conteudo(['url' => 'assets/uploads/biblioteca_20260101_abc123.pdf', 'titulo' => 'Guia Ágil', 'tipo' => 'ebook']);
+$acWeb = pt_acesso_conteudo(['url' => 'https://www.gov.br/x.pdf', 'titulo' => 'X', 'tipo' => 'ebook']);
+confere('botões: PDF da biblioteca = Baixar (download); link da web = Acessar (nova aba); currículo nunca é biblioteca',
+    ($acLocal['curto'] ?? '') === 'Baixar' && str_contains($acLocal['atributos'] ?? '', 'download="guia-ágil.pdf"') && ($acWeb['curto'] ?? '') === 'Acessar'
+    && str_contains($acWeb['atributos'] ?? '', 'target="_blank"') && pt_acesso_conteudo(['url' => '', 'tipo' => 'curso']) === null
+    && !eh_pdf_biblioteca('assets/uploads/cv_4_2026.pdf') && !eh_pdf_biblioteca('assets/uploads/biblioteca_../x.pdf') && pt_acesso_conteudo(['url' => 'javascript:alert(1)']) === null);
 // Ordenação e paginação das tabelas do painel.
 $linhas = [['id' => 1, 'n' => 'Ética'], ['id' => 2, 'n' => 'abacaxi'], ['id' => 3, 'n' => null], ['id' => 4, 'n' => 'Curso 10'], ['id' => 5, 'n' => 'Curso 9']];
 confere('ordenar_linhas: sem diferenciar maiúsculas/acentos, números naturais, vazios no fim', array_column(ordenar_linhas($linhas, 'n', 'asc'), 'id') === [2, 5, 4, 1, 3]

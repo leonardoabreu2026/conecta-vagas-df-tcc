@@ -66,3 +66,5 @@
 .pf-match-vip{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px}
 @media (max-width:900px){.pf-match-lista{grid-template-columns:1fr}}
 @media print{.pf-match{display:none!important}}
+/* Foto encontrada no currículo (relatório da extração) */
+.pf-rel-foto{width:44px;height:56px;object-fit:cover;border-radius:6px;border:1px solid #dfe5ee;margin-right:8px;vertical-align:middle;flex:none}

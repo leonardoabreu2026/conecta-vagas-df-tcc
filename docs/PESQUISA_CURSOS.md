@@ -1,44 +1,17 @@
-# Pesquisa guiada de cursos e e-books — de onde vêm os links novos
+# Fontes oficiais de cursos e e-books — de onde vêm os links novos
 
-Este é o roteiro para **cadastrar novos cursos, e-books e vídeos** com links oficiais, sem repetir o que já existe
-e mirando as áreas que têm menos conteúdo. Tudo acontece em **Painel → Cursos e e-books → "Novos links: pesquisa guiada"**.
-
-> Para cadastrar **um item por vez** (ou uma lista de links/títulos que você já tem), use o **prompt mestre**
-> das IAs de pesquisa: [PROMPTS_PESQUISA.md](PROMPTS_PESQUISA.md).
-
-## Visão geral
-
-```
- escolher o foco ──► prompt pronto ──► IA de pesquisa ──► colar a resposta ──► prévia ──► cadastrar marcados
- (formato, área,     (fontes oficiais,  (Perplexity ou     (fichas separadas    (link, imagem,  (baixa a imagem,
-  fonte, quantidade)  lacunas, links     ChatGPT com       por ---)             repetido?)      publica)
-                      já cadastrados)    busca na web)
-```
+Referência para pesquisar **novos cursos, e-books e vídeos** com links oficiais. O **prompt padrão** das IAs de
+pesquisa está em [PROMPTS_PESQUISA.md](PROMPTS_PESQUISA.md); a resposta (fichas) é colada na caixa **Extrair** do
+painel (**Painel → Cursos e e-books**).
 
 | Peça | Arquivo | Papel |
 |---|---|---|
 | Catálogo de fontes oficiais | `app/Services/Extracao/FontesCursos.php` (`FONTES`) | onde procurar: catálogo, domínio para `site:`, formatos, dica |
-| Cobertura e lacunas | `FontesCursos::cobertura()` | conta o que já existe por área/formato e por fonte; as áreas da metade de baixo são **lacunas** |
-| Prompt direcionado | `FontesCursos::prompt()` | monta o pedido: formato, área (ou lacunas), fonte(s), quantidade (5–40) e os **links já cadastrados** para não repetir |
+| Cobertura e lacunas | `FontesCursos::cobertura()` | conta o que já existe por área/formato e por fonte |
+| Prompt em lote direcionado | `FontesCursos::prompt()` | formato, área (ou lacunas), fonte(s), quantidade e os links já cadastrados, para não repetir |
 | Leitura das fichas | `ExtracaoCurso::fichas()` | limpa o Markdown da IA, separa as fichas e extrai cada campo |
-| Nome da instituição | `FontesCursos::nomeOficial()` | padroniza pelo domínio do link (ex.: "Fundação Bradesco - Escola Virtual" → "Fundação Bradesco – Escola Virtual") |
-| Imagem | `ImagemRemota` | confere e baixa a capa/imagem; sem imagem a ficha não entra |
-
-## Passo a passo
-
-1. **Direcione a pesquisa** (primeiro passo do painel):
-   - **Formato**: cursos e e-books (misto), só cursos, só e-books ou só vídeos;
-   - **Área**: deixe em "Áreas com menos conteúdo" para cobrir as lacunas, ou escolha uma área;
-   - **Fonte**: todas as fontes oficiais que têm o formato, ou uma só (ex.: só SEBRAE);
-   - **Quantidade**: 20 é um bom lote (máximo 40).
-   Clique em **Gerar prompt**. Em "Cobertura atual por área e fontes oficiais" há atalhos **Pesquisar** por área
-   e por fonte, e o link **Abrir** do catálogo de cada instituição (para conferir à mão).
-2. **Copie o prompt** e cole no Perplexity (ou ChatGPT com busca na web).
-3. **Cole a resposta inteira** em "Ler fichas". Nada é salvo ainda.
-4. **Confira a prévia**: cada ficha aparece como *Pronto*, *Sem link válido*, *Sem imagem* ou *Já cadastrado (#id)*.
-   Abra os links suspeitos antes de cadastrar.
-5. **Cadastrar marcados**: as imagens são baixadas para `storage/uploads` e os conteúdos já entram publicados.
-   Depois, na lista, dá para ordenar por qualquer coluna, filtrar por formato/área/situação, editar, ocultar ou excluir.
+| Nome da instituição | `FontesCursos::nomeOficial()` | padroniza pelo domínio do link (ao importar e ao salvar) |
+| Imagem | `ImagemRemota` | confere e baixa a capa/imagem; sem imagem, entra a imagem padrão da plataforma |
 
 ## Fontes oficiais do catálogo
 
@@ -70,12 +43,11 @@ no `site:`), `catalogo`, `formatos`, `areas` e `dica`. Em repositórios que publ
 
 - só links do site oficial, abrindo a página do próprio curso/e-book (PDF oficial vale para e-book);
 - nada encerrado ou com inscrições fechadas;
-- **imagem obrigatória** (capa do e-book, imagem de divulgação do curso), nunca logotipo genérico;
+- **imagem** oficial (capa do e-book, imagem de divulgação do curso), nunca logotipo genérico; sem ela, o item entra com a imagem padrão;
 - não repetir os links já cadastrados (a lista vai no fim do prompt, filtrada pela área/fonte escolhida);
 - resposta só em fichas com os rótulos exatos, separadas por `---`.
 
 ## Organização dos nomes
 
-O botão **Padronizar nomes de instituição** (dentro de "Cobertura atual…") só aparece quando há conteúdo fora do
-padrão. Ele troca o nome pela forma oficial da fonte do link e mantém a parceria entre parênteses
-("… (conteúdo Microsoft)"). Fichas importadas já entram com o nome padronizado.
+O nome da instituição é padronizado automaticamente pelo link oficial, ao importar e ao salvar (mantém a parceria
+entre parênteses, como "… (conteúdo Microsoft)"; em repositórios como o eduCAPES, o autor informado fica).

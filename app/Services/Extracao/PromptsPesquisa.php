@@ -2,8 +2,9 @@
 declare(strict_types=1);
 
 /**
- * PROMPT MESTRE para as IAs de pesquisa (Perplexity, ChatGPT, Gemini, Copilot, Claude) — cadastro MANUAL
- * de cursos, e-books e vídeos (tela admin/pages/cursos.php, "Prompt mestre para IAs de pesquisa").
+ * PROMPT PADRÃO para as IAs de pesquisa (Perplexity, ChatGPT, Gemini, Copilot, Claude) — cadastro de cursos,
+ * e-books e vídeos. Não aparece no painel: fica em docs/PROMPTS_PESQUISA.md (gerado por docs/gerar_prompts.php).
+ * A resposta (fichas) é colada na caixa "Extrair" do painel (admin/pages/cursos.php).
  *
  *  - mestre($ia): instruções para configurar UMA vez na IA (Space, Projeto, Gem...). Depois, basta mandar
  *    links ou títulos, um por linha: ela responde uma FICHA por item.
@@ -57,9 +58,9 @@ TXT;
 REGRAS DE PESQUISA:
 1. Abra a página OFICIAL de cada item (site da instituição) antes de responder. Nunca invente link, carga horária, preço ou imagem: o que não achar, escreva Não informado (na imagem: Não encontrada).
 2. Link: o endereço oficial da página do próprio curso/e-book (para e-book, pode ser o PDF oficial). Nada de página inicial, resultado de busca ou site que copia conteúdo.
-3. Imagem: endereço DIRETO de uma imagem oficial do item, terminando em .jpg, .jpeg, .png ou .webp — no e-book, a CAPA; no curso, a imagem de divulgação da página. Nunca logotipo genérico, ícone ou imagem de outro site.
+3. Imagem: endereço DIRETO de uma imagem oficial do item, terminando em .jpg, .jpeg, .png ou .webp — no e-book, a CAPA; no curso, a imagem de divulgação da página. Nunca logotipo genérico, ícone ou imagem de outro site. Não achou? Escreva Não encontrada (o cadastro entra com a imagem padrão da plataforma).
 4. Fontes oficiais preferidas: {$fontes}. Outras instituições públicas ou reconhecidas valem se o link for do site oficial delas.
-5. Tudo em português. Descrição curta e objetiva, sem propaganda. Diga se tem certificado.
+5. Tudo em português. Descrição curta e objetiva, sem propaganda. Diga se tem certificado. Área: escolha a mais próxima da lista (nunca invente uma área nova).
 6. Se um item estiver encerrado, fora do ar ou não for encontrado, responda no lugar da ficha: NÃO ENCONTRADO: <o que foi pedido> — <motivo>.
 7. Responda SOMENTE com as fichas, sem introdução, sem conclusão, sem tabela e sem negrito. Uma ficha por item, separadas por uma linha contendo apenas ---
 TXT;

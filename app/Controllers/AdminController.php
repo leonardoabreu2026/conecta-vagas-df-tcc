@@ -42,6 +42,9 @@ final class AdminController extends Controller {
         ];
 
         if (isAdmin()) {
+            // Manutenção automática (no máximo 1x por dia): limpa arquivos órfãos e a máquina de aprendizado estuda
+            // o que foi cadastrado — ninguém precisa calibrar nada.
+            manutencao_diaria($usuarioId);
             $usuariosPorTipo = (new UsuarioDAO())->contarPorTipo($dias);
             $novosUsuarios = (new UsuarioDAO())->listarRecentes(5);
             $vagasPorArea = $vagaDao->contarPorCategoria();
@@ -242,9 +245,12 @@ final class AdminController extends Controller {
     }
 
     /**
-     * admin/pages/cursos.php — CRUD de cursos/e-books + EXTRAÇÃO DE CURSOS:
-     * o administrador cola o texto de divulgação e o formulário é preenchido (nada é salvo sem revisão).
-     * Ao salvar um formulário que veio da extração, a máquina de aprendizado aprende com a revisão.
+     * admin/pages/cursos.php — CRUD de cursos, e-books e vídeos, com UMA caixa de extração:
+     *  - cola-se a ficha da IA de pesquisa (ou o texto de divulgação): 1 ficha → preenche o formulário para revisar;
+     *    várias fichas → prévia para cadastrar as marcadas (importação em lote);
+     *  - com imagem na ficha, ela é conferida e baixada; sem imagem, o conteúdo entra com a imagem padrão da
+     *    plataforma (CursoDAO::imagemPadrao) e aparece na lista como "trocar imagem", para ajustar depois;
+     *  - a máquina de aprendizado aprende sozinha com cada conteúdo salvo (sem painel).
      */
     public function cursos(): void {
         exigirAdmin();
@@ -270,32 +276,7 @@ final class AdminController extends Controller {
                 redirect('admin/pages/cursos.php'.painel_qs());
             }
 
-            if ($acao === 'padronizar_instituicoes') {
-                $n = $dao->padronizarInstituicoes();
-                flash('ok', $n ? "{$n} conteúdo(s) com o nome da instituição padronizado pelo link oficial." : 'Os nomes das instituições já estavam padronizados.');
-                redirect('admin/pages/cursos.php'.painel_qs().'#pesquisa');
-            }
-
-            // IMPORTAÇÃO EM LOTE (resposta do prompt de pesquisa): 1) ler as fichas e mostrar a prévia; 2) cadastrar as marcadas.
-            // Padrão da plataforma: título, link oficial e IMAGEM (capa do e-book / imagem do curso) — sem imagem, não entra.
-            if ($acao === 'importar_ler') {
-                set_time_limit(300);   // confere as imagens na internet
-                $nomesCat = array_column($cats, 'nome');
-                $itens = ImagemRemota::completar(array_slice(ExtracaoCurso::fichas(post_str('texto_lote'), $nomesCat), 0, 100));
-                foreach ($itens as &$it) {
-                    $it['problemas'] = [];
-                    if ($it['titulo'] === '') $it['problemas'][] = 'sem título';
-                    if (!url_http_valida($it['url'])) $it['problemas'][] = 'sem link válido';
-                    if ($it['imagem_url'] === '' && $it['imagem'] === '') $it['problemas'][] = 'sem imagem';
-                    $rep = $dao->buscarRepetido($it['url'], $it['titulo'], $it['instituicao']);
-                    if ($rep) $it['problemas'][] = 'já cadastrado (#'.(int)$rep['id'].')';
-                    $it['alerta'] = !$it['gratuito'] && !$it['preco'] ? 'pago sem preço: entra como gratuito, revise depois' : '';
-                }
-                unset($it);
-                $_SESSION['import_cursos'] = $itens;
-                flash($itens ? 'info' : 'erro', $itens ? count($itens).' ficha(s) lida(s). Confira a prévia abaixo e cadastre as marcadas.' : 'Nenhuma ficha encontrada. Cole a resposta completa da pesquisa (fichas com "Título:" e "Link:", separadas por ---).');
-                redirect('admin/pages/cursos.php#importar');
-            }
+            // Várias fichas coladas: cadastra as marcadas na prévia.
             if ($acao === 'importar_salvar') {
                 set_time_limit(300);   // baixa as imagens
                 $itens = (array)($_SESSION['import_cursos'] ?? []);
@@ -307,16 +288,17 @@ final class AdminController extends Controller {
                     $it = $itens[$i] ?? null;
                     if ($it && $it['titulo'] !== '' && url_http_valida($it['url']) && !$dao->buscarRepetido($it['url'], $it['titulo'], $it['instituicao'])) $validos[] = $it;
                 }
-                // Imagem de cada um: a da pesquisa/página (baixada para storage/uploads) ou, na falta, o banner da instituição.
+                // Imagem: a da ficha/página (baixada para storage/uploads); sem ela, o banner da instituição ou a imagem padrão.
                 $baixadas = ImagemRemota::baixar(array_map(fn($it) => (string)($it['imagem_url'] ?? ''), $validos), 'curso');
-                $ok = 0; $pulados = count($marcados) - count($validos);
+                $ok = 0; $comPadrao = 0; $pulados = count($marcados) - count($validos);
                 foreach ($validos as $it) {
+                    if ($dao->buscarRepetido($it['url'], $it['titulo'], $it['instituicao'])) { $pulados++; continue; }   // repetido dentro do próprio lote
+                    $tipo = enum_val($it['tipo'], CursoDAO::TIPOS, 'curso');
                     $imagem = $baixadas[$it['imagem_url'] ?? ''] ?? caminho_imagem_valido((string)$it['imagem']);
-                    // Fora do padrão (sem imagem) ou repetido dentro do próprio lote: não entra.
-                    if ($imagem === '' || $dao->buscarRepetido($it['url'], $it['titulo'], $it['instituicao'])) { $pulados++; continue; }
+                    if ($imagem === '') { $imagem = CursoDAO::imagemPadrao($tipo); $comPadrao++; }
                     $d = [
                         'categoria_id' => $catPorNome[$it['categoria']] ?? null, 'titulo' => mb_substr($it['titulo'], 0, 255), 'descricao' => (string)$it['descricao'],
-                        'tipo' => enum_val($it['tipo'], CursoDAO::TIPOS, 'curso'), 'modalidade' => enum_val($it['modalidade'], CursoDAO::MODALIDADES, 'ead'),
+                        'tipo' => $tipo, 'modalidade' => enum_val($it['modalidade'], CursoDAO::MODALIDADES, 'ead'),
                         'nivel' => enum_val($it['nivel'], CursoDAO::NIVEIS, 'iniciante'), 'duracao' => mb_substr((string)$it['duracao'], 0, 50),
                         'gratuito' => (int)$it['gratuito'] ? 1 : 0, 'preco' => (int)$it['gratuito'] ? null : $it['preco'], 'url' => mb_substr($it['url'], 0, 500),
                         'imagem' => $imagem, 'instituicao' => mb_substr((string)$it['instituicao'], 0, 255), 'ativo' => 1,
@@ -326,35 +308,49 @@ final class AdminController extends Controller {
                 }
                 foreach ($baixadas as $img) apagar_upload_sem_uso($img);   // imagem baixada de item que acabou não entrando
                 unset($_SESSION['import_cursos']);
-                flash($ok ? 'ok' : 'erro', $ok ? "{$ok} conteúdo(s) cadastrado(s) e publicado(s), cada um com a sua imagem".($pulados ? "; {$pulados} pulado(s) (sem link, sem título, sem imagem ou repetido)." : '.') : 'Nenhum conteúdo cadastrado. Marque as fichas que quer importar (só entram as que têm imagem).');
+                flash($ok ? 'ok' : 'erro', $ok ? "{$ok} conteúdo(s) cadastrado(s) e publicado(s)".($comPadrao ? "; {$comPadrao} com a imagem padrão (troque depois em Editar)" : '').($pulados ? "; {$pulados} pulado(s) (sem link, sem título ou repetido)." : '.') : 'Nenhum conteúdo cadastrado. Marque as fichas que quer importar.');
                 redirect('admin/pages/cursos.php');
             }
             if ($acao === 'importar_cancelar') { unset($_SESSION['import_cursos']); redirect('admin/pages/cursos.php'); }
 
-            if ($acao === 'gerar_prompt') {
-                // Prompt avulso (PromptsPesquisa): links/títulos colados, um por linha. Só monta o texto — nada é salvo.
-                $itensAvulso = PromptsPesquisa::entradas(preg_split('/\R/u', post_str('itens_pesquisa')) ?: []);
-                $formatoAvulso = enum_val(post_str('formato_pesquisa'), CursoDAO::TIPOS, '');
-                if (!$itensAvulso) flash('erro', 'Cole pelo menos um link ou título (um por linha).');
-            } elseif ($acao === 'extrair') {
-                // Extração de cursos: preenche o formulário para revisão, sem salvar.
-                // Ficha da IA de pesquisa ("Título: ... Link: ... Imagem: ...") → todos os campos; texto de divulgação → regras.
+            if ($acao === 'extrair') {
+                // Caixa única de extração: ficha(s) da IA de pesquisa ou texto de divulgação. Nada é salvo aqui.
                 $texto = post_str('texto_anuncio');
-                $fichasLidas = preg_match('/^\s*(?:\d+[.)]\s*)?(?:\*\*)?t[ií]tulo(?:\*\*)?\s*:/imu', $texto) ? ExtracaoCurso::fichas($texto, array_column($cats, 'nome')) : [];
+                $nomesCat = array_column($cats, 'nome');
+                $fichasLidas = preg_match('/^\s*(?:\d+[.)]\s*)?(?:\*\*)?t[ií]tulo(?:\*\*)?\s*:/imu', $texto) ? ExtracaoCurso::fichas($texto, $nomesCat) : [];
+                if (count($fichasLidas) > 1) {
+                    // Várias fichas → prévia (importação em lote).
+                    set_time_limit(300);   // confere as imagens na internet
+                    $itens = ImagemRemota::completar(array_slice($fichasLidas, 0, 100));
+                    foreach ($itens as &$it) {
+                        $it['problemas'] = [];
+                        if ($it['titulo'] === '') $it['problemas'][] = 'sem título';
+                        if (!url_http_valida($it['url'])) $it['problemas'][] = 'sem link válido';
+                        $rep = $dao->buscarRepetido($it['url'], $it['titulo'], $it['instituicao']);
+                        if ($rep) $it['problemas'][] = 'já cadastrado (#'.(int)$rep['id'].')';
+                        $alertas = [];
+                        if ($it['imagem_url'] === '' && $it['imagem'] === '') $alertas[] = 'sem imagem: entra com a imagem padrão';
+                        if (!$it['gratuito'] && !$it['preco']) $alertas[] = 'pago sem preço: entra como gratuito';
+                        $it['alerta'] = implode('; ', $alertas);
+                    }
+                    unset($it);
+                    $_SESSION['import_cursos'] = $itens;
+                    flash('info', count($itens).' fichas lidas. Confira a prévia e cadastre as marcadas.');
+                    redirect('admin/pages/cursos.php#extrair');
+                }
                 if ($fichasLidas) {
                     set_time_limit(120);   // confere a imagem da ficha (ou acha a da página do curso)
                     $extraido = ImagemRemota::completar([$fichasLidas[0]])[0];
-                    if (count($fichasLidas) > 1) flash('info', count($fichasLidas).' fichas coladas: o formulário foi preenchido com a primeira. Para cadastrar todas de uma vez, use "Importar vários".');
                 } else {
                     $extraido = ExtracaoCurso::doTexto($texto);
                 }
                 $cat = $extraido['categoria'] ? $catDao->buscarPorNome($extraido['categoria'], 'curso') : null;
                 $imgLink = (string)($extraido['imagem_url'] ?? '');
                 $form = $extraido + ['id' => $id, 'categoria_id' => $cat['id'] ?? null, 'ativo' => 1];
-                // Imagem: a do link (baixada ao salvar) ou, sem ela, o banner da instituição.
+                // Imagem: a do link (baixada ao salvar); sem ela, o banner da instituição (ou a padrão, ao salvar).
                 $form['imagem'] = $imgLink !== '' ? '' : ExtracaoCurso::capa($extraido['instituicao'], $extraido['url'], $extraido['tipo']);
                 $form['imagem_url'] = $imgLink;
-                $form['sugestao_maquina'] = $this->guardarSugestao('curso', fn() => MaquinaAprendizado::sugestao('curso', $extraido, [], post_str('texto_anuncio')));
+                $form['sugestao_maquina'] = $this->guardarSugestao('curso', fn() => MaquinaAprendizado::sugestao('curso', $extraido, [], $texto));
             } else {
                 $d = [
                     'categoria_id' => post_int('categoria_id') ?: null,
@@ -368,7 +364,7 @@ final class AdminController extends Controller {
                     'preco' => decimal_ou_null(post_str('preco')),
                     'url' => mb_substr(post_str('url'), 0, 500),
                     'imagem' => caminho_imagem_valido(mb_substr(post_str('imagem'), 0, 255)),
-                    'instituicao' => mb_substr(post_str('instituicao'), 0, 255),
+                    'instituicao' => mb_substr(FontesCursos::nomeOficial(post_str('instituicao'), post_str('url')), 0, 255),   // nome padronizado pelo link oficial
                     'ativo' => isset($_POST['ativo']) ? 1 : 0,
                 ];
                 $existente = $id ? $dao->buscar($id) : null;
@@ -376,7 +372,11 @@ final class AdminController extends Controller {
                 if ($id && !$existente) $erros[] = 'Conteúdo não encontrado (pode ter sido excluído).';
                 if ($d['titulo'] === '') $erros[] = 'Informe o título.';
                 // Só http/https: impede links "javascript:" no botão do curso.
-                if ($d['url'] !== '' && !url_http_valida($d['url'])) $erros[] = 'O link oficial precisa ser um endereço válido começando com http:// ou https://.';
+                if ($d['url'] !== '' && !url_http_valida($d['url']) && !eh_pdf_biblioteca($d['url'])) $erros[] = 'O link oficial precisa ser um endereço válido começando com http:// ou https://.';
+                // PDF enviado para a BIBLIOTECA da plataforma: vira o link do conteúdo e o botão passa a ser "Baixar".
+                $pdf = salvar_pdf_biblioteca('arquivo_pdf');
+                if ($pdf === false) $erros[] = 'PDF inválido: envie um arquivo PDF de até '.(int)(MAX_PDF_BIBLIOTECA / 1024 / 1024).' MB.';
+                elseif ($pdf !== null) $d['url'] = $pdf;
                 if (post_str('imagem') !== '' && $d['imagem'] === '') $erros[] = 'Caminho de imagem inválido (use um arquivo de assets/img ou envie uma imagem).';
                 if ($d['categoria_id'] && !in_array((int)$d['categoria_id'], array_map(fn($c) => (int)$c['id'], $cats), true)) $d['categoria_id'] = null; // só categorias de curso
                 if (!$d['gratuito'] && ($d['preco'] === null || $d['preco'] <= 0)) $erros[] = 'Informe o preço do conteúdo pago (ou marque como gratuito).';
@@ -384,7 +384,7 @@ final class AdminController extends Controller {
                 $img = salvar_imagem_enviada('imagem_arquivo', 'curso');
                 if ($img === false) $erros[] = 'Imagem inválida (use JPG, PNG ou WEBP até 3 MB).';
                 elseif ($img !== null) $d['imagem'] = $img;
-                // Imagem por LINK (ex.: a que a IA de pesquisa trouxe): baixada para storage/uploads só ao salvar,
+                // Imagem por LINK (ex.: a que veio na ficha): baixada para storage/uploads só ao salvar,
                 // e só quando não veio arquivo nem caminho.
                 $imgLink = mb_substr(post_str('imagem_url'), 0, 500);
                 if ($imgLink !== '' && !url_http_valida($imgLink)) $erros[] = 'O link da imagem precisa começar com http:// ou https://.';
@@ -392,22 +392,29 @@ final class AdminController extends Controller {
                 if (!$erros && $img === null && $d['imagem'] === '' && $imgLink !== '') {
                     set_time_limit(120);
                     $baixada = ImagemRemota::baixar([$imgLink], 'curso')[$imgLink] ?? '';
-                    if ($baixada === '') $erros[] = 'Não foi possível baixar a imagem do link (precisa ser uma imagem JPG, PNG ou WEBP pública). Envie o arquivo ou escolha um caminho.';
+                    if ($baixada === '') $erros[] = 'Não foi possível baixar a imagem do link (precisa ser uma imagem JPG, PNG ou WEBP pública). Apague o link para cadastrar com a imagem padrão, envie o arquivo ou escolha um caminho.';
                     else $d['imagem'] = $baixada;
                 }
-                // Padrão da plataforma: todo curso, e-book e vídeo aparece com a sua imagem.
-                if ($img !== false && $d['imagem'] === '' && post_str('imagem') === '' && $imgLink === '') $erros[] = 'Informe a imagem do conteúdo: escolha um caminho (ex.: a capa do e-book), envie uma imagem ou cole o link dela.';
+                // Sem imagem nenhuma: entra com o banner da instituição ou a imagem padrão da plataforma (troca depois).
+                $usouPadrao = false;
+                if (!$erros && $d['imagem'] === '') {
+                    $d['imagem'] = ExtracaoCurso::capa($d['instituicao'], $d['url'], $d['tipo']) ?: CursoDAO::imagemPadrao($d['tipo']);
+                    $usouPadrao = CursoDAO::ehImagemPadrao($d['imagem']);
+                }
                 if ($erros) {
                     if ($img) { apagar_upload_sem_uso($img); $d['imagem'] = $existente['imagem'] ?? ''; } // não deixa arquivo órfão
+                    if (is_string($pdf)) { apagar_upload_sem_uso($pdf); $d['url'] = $existente['url'] ?? ''; }
                     if ($baixada !== '') { apagar_upload_sem_uso($baixada); $d['imagem'] = $existente['imagem'] ?? ''; }
                     flash('erro', implode(' ', $erros));
                     $form = $d + ['id' => $id, 'imagem_url' => $imgLink, 'sugestao_maquina' => post_str('sugestao_maquina')];
                 } else {
                     $ok = $dao->salvar($d, $id);
                     if ($ok && $existente && ($existente['imagem'] ?? '') !== $d['imagem']) apagar_upload_sem_uso((string)$existente['imagem']);
-                    // Aprendizado: o curso salvo é a resposta certa para a sugestão da extração.
-                    $aprendeu = $ok ? $this->aprenderComRevisao('curso', $d + ['categoria' => array_column($cats, 'nome', 'id')[(int)$d['categoria_id']] ?? ''], post_str('sugestao_maquina')) : null;
-                    flash($ok ? 'ok' : 'erro', $ok ? 'Conteúdo salvo.'.(!empty($aprendeu['licoes']) ? ' A máquina de extração aprendeu '.$aprendeu['licoes'].' '.($aprendeu['licoes'] === 1 ? 'lição' : 'lições').' com a sua revisão.' : '') : 'Não foi possível salvar.');
+                    if ($ok && $existente && ($existente['url'] ?? '') !== $d['url']) apagar_upload_sem_uso((string)$existente['url']);   // PDF antigo da biblioteca
+                    if (!$ok && is_string($pdf)) apagar_upload_sem_uso($pdf);
+                    // Aprendizado automático: o conteúdo salvo é a resposta certa para a sugestão da extração.
+                    if ($ok) $this->aprenderComRevisao('curso', $d + ['categoria' => array_column($cats, 'nome', 'id')[(int)$d['categoria_id']] ?? ''], post_str('sugestao_maquina'));
+                    flash($ok ? 'ok' : 'erro', $ok ? 'Conteúdo salvo.'.($usouPadrao ? ' Entrou com a imagem padrão da plataforma: quando tiver a imagem certa, use Editar para trocar.' : '') : 'Não foi possível salvar.');
                     redirect('admin/pages/cursos.php'.painel_qs());   // volta para a mesma aba, filtros e ordem
                 }
             }
@@ -422,41 +429,18 @@ final class AdminController extends Controller {
         $filtroTipo = enum_val(get_str('tipo'), CursoDAO::TIPOS, '');
         $busca = get_str('q');
         $filtroCat = (int)get_str('categoria_id');
-        $filtroSituacao = enum_val(get_str('situacao'), ['publicado', 'oculto'], '');
-        $todos = $dao->listar(false);
-        $base = array_values(array_filter($dao->listar(false, ['q' => $busca, 'categoria_id' => $filtroCat]),
-            fn($c) => $filtroSituacao === '' || (int)$c['ativo'] === ($filtroSituacao === 'publicado' ? 1 : 0)));
+        $filtroSituacao = enum_val(get_str('situacao'), ['publicado', 'oculto', 'imagem_padrao'], '');
+        $base = array_values(array_filter($dao->listar(false, ['q' => $busca, 'categoria_id' => $filtroCat]), fn($c) => match ($filtroSituacao) {
+            'publicado' => (int)$c['ativo'] === 1, 'oculto' => (int)$c['ativo'] === 0, 'imagem_padrao' => CursoDAO::ehImagemPadrao((string)$c['imagem']), default => true,
+        }));
         $porTipo = array_count_values(array_column($base, 'tipo'));   // contagem das abas já com os outros filtros
         $lista = $filtroTipo === '' ? $base : array_values(array_filter($base, fn($c) => $c['tipo'] === $filtroTipo));
         [$ordem, $dir] = lista_ordem(['titulo', 'tipo', 'categoria_nome', 'instituicao', 'ativo', 'created_at', 'id'], 'created_at', 'desc');
         $totalLista = count($lista);
         [$lista, $pagina, $paginas] = paginar(ordenar_linhas($lista, $ordem, $dir), 25);
         $comFiltro = $busca !== '' || $filtroCat || $filtroSituacao !== '';
-        $publicados = count(array_filter($todos, fn($c) => (int)$c['ativo']));
-        $imagens = array_merge(imagens_da_pasta('assets/img/cursos'), imagens_da_pasta('assets/img/cursos/capas'), imagens_da_pasta('assets/img/ebooks'));
-        // PESQUISA GUIADA (FontesCursos): de onde vêm os links novos. O prompt mira as áreas com menos conteúdo
-        // e leva os links já cadastrados, para a IA não repetir.
-        $areasAtivas = array_column(array_filter($cats, fn($c) => (int)$c['ativo']), 'nome');
-        $cobertura = FontesCursos::cobertura($todos, $areasAtivas);
-        $pesquisa = [
-            'formato' => enum_val(get_str('p_formato'), CursoDAO::TIPOS, ''),
-            'area' => in_array(get_str('p_area'), $areasAtivas, true) ? get_str('p_area') : '',
-            'fonte' => isset(FontesCursos::FONTES[get_str('p_fonte')]) ? get_str('p_fonte') : '',
-            'quantidade' => max(5, min(40, (int)(get_str('p_qtd') ?: 20))),
-        ];
-        $linksCadastrados = array_values(array_filter(array_map(fn($c) => (string)$c['url'], array_filter($todos,
-            fn($c) => ($pesquisa['fonte'] === '' || FontesCursos::fonteDoLink((string)$c['url']) === $pesquisa['fonte'])
-                && ($pesquisa['area'] === '' || ($c['categoria_nome'] ?? '') === $pesquisa['area'])))));
-        $promptPesquisa = FontesCursos::prompt($pesquisa, $areasAtivas, $cobertura['lacunas'], $linksCadastrados);
-        // PROMPT MESTRE (PromptsPesquisa): um por IA, para o cadastro manual; e o avulso com os links/títulos colados.
-        $iaMestre = isset(PromptsPesquisa::IAS[get_str('ia')]) ? get_str('ia') : 'perplexity';
-        $promptMestre = PromptsPesquisa::mestre($iaMestre, $areasAtivas);
-        $itensAvulso ??= [];
-        $formatoAvulso ??= '';
-        $promptAvulso = $itensAvulso ? PromptsPesquisa::avulso($itensAvulso, $areasAtivas, $formatoAvulso) : '';
-        $mestreAberto = get_str('ia') !== '' || ($acao ?? '') === 'gerar_prompt';
-        $pesquisaAberta = get_str('p_qtd') !== '';
-        $semPadrao = count(array_filter($todos, fn($c) => FontesCursos::nomeOficial((string)$c['instituicao'], (string)$c['url']) !== (string)$c['instituicao']));
+        $comImagemPadrao = count(array_filter($dao->listar(false), fn($c) => CursoDAO::ehImagemPadrao((string)$c['imagem'])));
+        $imagens = array_merge(imagens_da_pasta('assets/img/cursos'), imagens_da_pasta('assets/img/cursos/capas'), imagens_da_pasta('assets/img/ebooks'), imagens_da_pasta('assets/img/padrao'));
         $importacao = (array)($_SESSION['import_cursos'] ?? []);
         $title = 'Cursos e e-books';
         $abaAtiva = 'cursos';

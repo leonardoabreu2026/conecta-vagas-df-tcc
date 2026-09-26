@@ -9,6 +9,7 @@ declare(strict_types=1);
  *  - No banco é gravado o caminho "lógico" assets/uploads/<nome> — o mesmo endereço
  *    que o navegador usa. Quem entrega o arquivo é o sistema:
  *      imagens (fotos, logos, cartazes) → ArquivoController::imagem (público);
+ *      PDFs da biblioteca (biblioteca_*) → ArquivoController::imagem (público: e-books da plataforma);
  *      currículos                       → download.php, com checagem de permissão.
  *  - caminho_upload() converte o caminho do banco no caminho real do disco.
  */
@@ -42,6 +43,29 @@ function salvar_imagem_enviada(string $campo, string $prefixo, int $maxBytes = 3
     return move_uploaded_file($f['tmp_name'], UPLOAD_DIR.$nome) ? 'assets/uploads/'.$nome : false;
 }
 
+/** Tamanho máximo de um PDF da biblioteca (e-book guardado na plataforma). */
+const MAX_PDF_BIBLIOTECA = 25 * 1024 * 1024;
+
+/** O link é um PDF da nossa biblioteca ("assets/uploads/biblioteca_....pdf")? */
+function eh_pdf_biblioteca(string $url): bool {
+    return (bool)preg_match('#^assets/uploads/biblioteca_[A-Za-z0-9_]+\.pdf$#', $url);
+}
+
+/**
+ * Salva o PDF de um e-book na biblioteca da plataforma (storage/uploads/biblioteca_*.pdf).
+ * Tipo conferido pelo CONTEÚDO (application/pdf e assinatura %PDF-), nome aleatório.
+ * @return string|null|false caminho gravável no banco; null se nada foi enviado; false se inválido.
+ */
+function salvar_pdf_biblioteca(string $campo): string|null|false {
+    $f = $_FILES[$campo] ?? null;
+    if (!is_array($f) || is_array($f['error'] ?? null) || ($f['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) return null;
+    if ($f['error'] !== UPLOAD_ERR_OK || $f['size'] > MAX_PDF_BIBLIOTECA || !is_uploaded_file($f['tmp_name'])) return false;
+    $mime = (new finfo(FILEINFO_MIME_TYPE))->file($f['tmp_name']) ?: '';
+    if ($mime !== 'application/pdf' || (string)file_get_contents($f['tmp_name'], false, null, 0, 5) !== '%PDF-') return false;
+    $nome = 'biblioteca_'.date('YmdHis').'_'.bin2hex(random_bytes(5)).'.pdf';
+    return move_uploaded_file($f['tmp_name'], UPLOAD_DIR.$nome) ? 'assets/uploads/'.$nome : false;
+}
+
 /**
  * Apaga um arquivo enviado se nenhum registro do banco ainda o usa
  * (vagas, cursos, fotos/logos de perfil, currículos). Ignora o que não for upload.
@@ -50,9 +74,9 @@ function apagar_upload_sem_uso(string $rel): void {
     $path = caminho_upload($rel);
     if ($path === null) return;
     try {
-        $s = Database::getConexao()->prepare("SELECT (SELECT COUNT(*) FROM vagas WHERE imagem=?) + (SELECT COUNT(*) FROM cursos WHERE imagem=?)
+        $s = Database::getConexao()->prepare("SELECT (SELECT COUNT(*) FROM vagas WHERE imagem=?) + (SELECT COUNT(*) FROM cursos WHERE imagem=? OR url=?)
                                                   + (SELECT COUNT(*) FROM perfis WHERE foto=?) + (SELECT COUNT(*) FROM curriculos WHERE arquivo_pdf=?)");
-        $s->execute([$rel, $rel, $rel, $rel]);
+        $s->execute([$rel, $rel, $rel, $rel, $rel]);
         if ((int)$s->fetchColumn() > 0) return;
     } catch (Throwable) {
         return;
@@ -80,4 +104,37 @@ function caminho_imagem_valido(string $caminho): string {
     $caminho = str_replace('\\', '/', trim($caminho));
     if ($caminho === '' || str_contains($caminho, '..')) return '';
     return preg_match('#^assets/(img|uploads)/[A-Za-z0-9_\-/.]+\.(png|jpe?g|webp|gif|svg)$#i', $caminho) ? $caminho : '';
+}
+
+/**
+ * Limpeza automática de storage/uploads: apaga os arquivos que nenhum registro usa (vagas, cursos, fotos e
+ * logos de perfil, currículos) e que têm mais de $horas — sobra de conta excluída, extração abandonada ou teste.
+ * Os recentes ficam (ex.: foto do currículo esperando o candidato escolher). Devolve quantos apagou.
+ */
+function limpar_uploads_orfaos(int $horas = 24): int {
+    $db = Database::getConexao();
+    $usados = [];
+    foreach (['SELECT imagem FROM vagas', 'SELECT imagem FROM cursos', 'SELECT url FROM cursos', 'SELECT foto FROM perfis', 'SELECT arquivo_pdf FROM curriculos'] as $sql) {
+        foreach ($db->query($sql)->fetchAll(PDO::FETCH_COLUMN) as $v) if ($v) $usados[basename((string)$v)] = true;
+    }
+    $n = 0; $limite = time() - $horas * 3600;
+    foreach (glob(UPLOAD_DIR.'*') ?: [] as $f) {
+        $b = basename($f);
+        if ($b[0] === '.' || !is_file($f) || isset($usados[$b]) || filemtime($f) > $limite) continue;
+        if (@unlink($f)) $n++;
+    }
+    return $n;
+}
+
+/**
+ * Tarefas automáticas do sistema, no máximo 1x por dia (disparadas ao abrir a visão geral do administrador):
+ * limpeza de arquivos órfãos e o estudo da máquina de aprendizado. Nunca interrompe a página.
+ */
+function manutencao_diaria(?int $usuarioId = null): void {
+    $marca = LOG_DIR.'manutencao_diaria.txt';
+    if (!(is_file($marca) && time() - (int)@file_get_contents($marca) < 86400)) {
+        @file_put_contents($marca, (string)time(), LOCK_EX);
+        try { limpar_uploads_orfaos(); } catch (Throwable $e) { error_log('[manutencao_diaria] '.$e->getMessage()); }
+    }
+    MaquinaAprendizado::manutencaoAutomatica($usuarioId);   // tem o seu próprio controle de 1x por dia
 }

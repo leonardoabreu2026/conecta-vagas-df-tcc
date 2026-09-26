@@ -56,7 +56,6 @@ $cartazNoForm = !empty($form['imagem']) && str_starts_with((string)$form['imagem
         <?php if ($extraido['avisos'] ?? []): ?>
             <ul class="ex-avisos"><?php foreach ($extraido['avisos'] as $a): ?><li><?=e($a)?></li><?php endforeach; ?></ul>
         <?php endif; ?>
-        <?=painel_decisoes_maquina($extraido['maquina'] ?? [], MaquinaAprendizado::MODELOS['vaga_linha'][2])?>
         <details class="pf-rel-detalhes" open>
             <summary>Ver campo por campo</summary>
             <div class="pf-rel-tabela" role="table" aria-label="Campos extraídos">

@@ -123,7 +123,26 @@ function pt_secao_formato(string $tipo): array {
 
 /** Verbo do botão de acesso ao conteúdo. */
 function pt_cta_curso(string $tipo): string {
-    return ['ebook' => 'Baixar e-book', 'video' => 'Assistir ao vídeo'][$tipo] ?? 'Acessar curso';
+    return ['ebook' => 'Acessar e-book', 'video' => 'Acessar vídeo'][$tipo] ?? 'Acessar curso';
+}
+
+/**
+ * Botão de acesso ao conteúdo, decidido pelo ENDEREÇO (não pelo formato):
+ *  - PDF da nossa biblioteca (assets/uploads/biblioteca_*.pdf) → "Baixar": baixa direto, com o nome do conteúdo;
+ *  - link da web (página ou PDF de outro site)                → "Acessar": abre em nova aba.
+ * @return array{href:string,baixar:bool,curto:string,longo:string,icone:string,atributos:string}|null null = sem link
+ */
+function pt_acesso_conteudo(array $c): ?array {
+    $u = trim((string)($c['url'] ?? ''));
+    if (eh_pdf_biblioteca($u)) {
+        $nome = trim(preg_replace('/[^\p{L}\p{N}]+/u', '-', mb_strtolower((string)($c['titulo'] ?? 'conteudo'))) ?? '', '-') ?: 'conteudo';
+        return ['href' => url($u), 'baixar' => true, 'curto' => 'Baixar', 'longo' => 'Baixar PDF', 'icone' => 'download',
+                'atributos' => ' download="'.e(mb_substr($nome, 0, 80)).'.pdf"'];
+    }
+    $ext = pt_url_externa($u);
+    if ($ext === '') return null;
+    return ['href' => $ext, 'baixar' => false, 'curto' => 'Acessar', 'longo' => pt_cta_curso((string)($c['tipo'] ?? 'curso')), 'icone' => 'externo',
+            'atributos' => ' target="_blank" rel="noopener"'];
 }
 
 /** Preço do curso: "Gratuito" ou "R$ 49,90". */
@@ -356,7 +375,7 @@ function cv_contatos_vaga(array $contatos): string {
 function cv_card_curso(array $c): string {
     $id = (int)$c['id'];
     $link = url('curso.php?id='.$id);
-    $ext = pt_url_externa($c['url'] ?? '');
+    $acesso = pt_acesso_conteudo($c);
     $img = trim((string)($c['imagem'] ?? ''));
     // E-book: a capa (em pé) aparece inteira, sem cortar, sobre um fundo suave dela mesma — como o cartaz das vagas.
     $midia = $c['tipo'] === 'ebook' && $img !== '' ? cv_cartaz_vaga($img) : cv_img($img, pt_secao_formato((string)$c['tipo'])[2]);
@@ -369,7 +388,8 @@ function cv_card_curso(array $c): string {
     $h .= '<p class="cv-card-meta">'.e($c['instituicao'] ?: 'Instituição parceira').'<br><b>'.e(pt_preco($c)).'</b> · '.e(rotulo((string)$c['modalidade'])).($c['duracao'] ? ' · '.e($c['duracao']) : '').'</p>';
     $h .= '</div><div class="cv-card-acoes">';
     $h .= '<a class="cv-btn cv-btn-azul" href="'.e($link).'">'.icone('olho', 15).'Saiba mais</a>';
-    if ($ext) $h .= '<a class="cv-btn cv-btn-verde" href="'.e($ext).'" target="_blank" rel="noopener">'.icone('externo', 15).(['ebook' => 'Baixar', 'video' => 'Assistir'][$c['tipo']] ?? 'Acessar').'<span class="sr-only"> (abre em nova aba)</span></a>';
+    if ($acesso) $h .= '<a class="cv-btn cv-btn-verde" href="'.e($acesso['href']).'"'.$acesso['atributos'].'>'.icone($acesso['icone'], 15).$acesso['curto']
+                     .'<span class="sr-only"> '.e($c['titulo']).($acesso['baixar'] ? ' (PDF)' : ' (abre em nova aba)').'</span></a>';
     return $h.'</div></article>';
 }
 

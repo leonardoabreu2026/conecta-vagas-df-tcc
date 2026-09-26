@@ -43,6 +43,7 @@ $faltando = array_values(array_filter($itensRel, fn($i) => $i['status'] === 'nao
     <?php foreach ($mantidos as $i): ?>
       <label class="pf-rel-opcao">
         <input type="checkbox" name="campos[]" value="<?=e($i['campo'])?>">
+        <?php if (($i['imagem'] ?? '') !== ''): ?><img class="pf-rel-foto" src="<?=e(url($i['imagem']))?>" alt="Foto encontrada no currículo"><?php endif; ?>
         <span><b><?=e($i['rotulo'])?>:</b> <?=e($i['valor'])?><?php if ($i['atual'] !== ''): ?> <small>(atual: <?=e($i['atual'])?>)</small><?php endif; ?></span>
       </label>
     <?php endforeach; ?>
@@ -56,7 +57,7 @@ $faltando = array_values(array_filter($itensRel, fn($i) => $i['status'] === 'nao
       <?php foreach ($itensRel as $i): [$rot, $cls] = $rotulosStatus[$i['status']] ?? [$i['status'], 'neutro']; ?>
         <div class="pf-rel-linha" role="row">
           <span class="pf-rel-campo" role="cell"><?=e($i['rotulo'])?></span>
-          <span class="pf-rel-valor" role="cell"><?=$i['valor'] !== '' ? e($i['valor']) : '<span class="muted">—</span>'?></span>
+          <span class="pf-rel-valor" role="cell"><?php if (($i['imagem'] ?? '') !== ''): ?><img class="pf-rel-foto" src="<?=e(url($i['imagem']))?>" alt=""><?php endif; ?><?=$i['valor'] !== '' ? e($i['valor']) : '<span class="muted">—</span>'?></span>
           <span class="pf-rel-status <?=e($cls)?>" role="cell"><?=e($rot)?></span>
         </div>
       <?php endforeach; ?>

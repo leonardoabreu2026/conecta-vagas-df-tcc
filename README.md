@@ -89,7 +89,7 @@ TCC_GUSTAVO/
 ├── docs/ARQUITETURA.md    como o sistema funciona por dentro (leia para a apresentação)
 ├── docs/APRENDIZADO.md    a máquina de aprendizado: ideia, algoritmo, arquivos e roteiro de demonstração
 ├── docs/PESQUISA_CURSOS.md  pesquisa guiada: de onde vêm os links dos novos cursos e e-books
-├── docs/PROMPTS_PESQUISA.md prompt mestre para as IAs de pesquisa (cadastro manual por link ou título)
+├── docs/PROMPTS_PESQUISA.md prompt padrão para as IAs de pesquisa (gerado por docs/gerar_prompts.php)
 ├── .githooks/pre-commit   blindagem: antes de cada commit confere a sintaxe e roda o teste rápido
 ├── public/                ÚNICA pasta servida pelo Apache
 │   ├── index.php          front controller: porta de entrada de todas as páginas + tabela de rotas
@@ -121,19 +121,33 @@ Os endereços são os mesmos das versões anteriores (`vaga.php?id=3`, `view/per
 Detalhes — camadas, tabela completa de rotas, máquinas de extração e de match, regras dos planos,
 segurança e o mapa "onde estava → onde está": **[docs/ARQUITETURA.md](docs/ARQUITETURA.md)**.
 
-## Cadastrar cursos e e-books com ajuda de outra IA (prompt mestre)
+## Cadastrar cursos e e-books (com ajuda de outra IA)
 
-Em **Painel → Cursos e e-books → "Prompt mestre para IAs de pesquisa"**:
+Em **Painel → Cursos e e-books** há uma caixa só, **Extrair**:
 
-1. escolha a IA (Perplexity, ChatGPT, Gemini, Copilot ou Claude), copie o **prompt mestre** e configure uma vez
-   (Space, Projeto, Gem… — a tela explica onde); depois é só mandar **links ou títulos**, um por linha;
-2. ou, sem configurar nada, cole os links/títulos em **"Ou um prompt avulso"** e copie o prompt pronto;
-3. a IA responde uma **ficha por item**, com os mesmos campos do formulário. **Uma ficha** → cole na
-   "Máquina de extração" (preenche o formulário inteiro, inclusive o link da imagem, baixada ao salvar);
-   **várias** → "Importar vários".
+1. peça a uma IA de pesquisa (Perplexity, ChatGPT, Gemini…) que pesquise os links ou títulos e responda no
+   **modelo de ficha** (Título, Tipo, Instituição, Modalidade, Cidade, Nível, Carga horária, Gratuito, Preço, Área,
+   Link, Imagem, Descrição). O prompt padrão está em **[docs/PROMPTS_PESQUISA.md](docs/PROMPTS_PESQUISA.md)**;
+2. cole a resposta em **Extrair**: **uma ficha** (ou um texto de divulgação) preenche o formulário para revisar e
+   salvar; **várias fichas** (separadas por `---`) abrem uma prévia para cadastrar de uma vez;
+3. **com imagem** na ficha, ela é conferida e baixada; **sem imagem**, o conteúdo entra com a **imagem padrão** da
+   plataforma e a lista mostra *trocar imagem* (filtro "Com imagem padrão") — edite quando tiver a imagem certa;
+4. **Baixar × Acessar**: envie o PDF do e-book no cadastro e ele fica na **biblioteca** da plataforma (botão
+   **Baixar**, baixa direto); conteúdo que fica em outro site mostra **Acessar** (abre em nova aba).
 
-Os prompts de cada IA, para consulta fora do painel: **[docs/PROMPTS_PESQUISA.md](docs/PROMPTS_PESQUISA.md)**.
-De onde vêm os links (fontes oficiais, lacunas por área): [docs/PESQUISA_CURSOS.md](docs/PESQUISA_CURSOS.md).
+Fontes oficiais para pesquisar: [docs/PESQUISA_CURSOS.md](docs/PESQUISA_CURSOS.md).
+
+## Manutenção automática (ninguém precisa calibrar nada)
+
+Ao abrir a **visão geral** do painel, no máximo uma vez por dia, o sistema sozinho:
+- faz a **máquina de aprendizado estudar** o que foi cadastrado e revisado (vagas, cursos e perfis públicos),
+  recalibrar a confiança e conferir o desempenho **recente**: se ela começar a errar, volta a valer a regra até ela
+  provar de novo. Correção contraditória também se resolve sozinha (vale a mais recente). Ela não aparece no menu;
+- **limpa arquivos órfãos** de `storage/uploads` (sem registro que os use e com mais de 24 h).
+
+**Foto do currículo**: ao enviar o currículo (PDF ou DOCX), a foto é encontrada pelo padrão de foto de currículo
+(tons de pele, fotografia, proporção de retrato — ignora logotipos, ícones e página escaneada) e vira a foto do
+perfil; se o perfil já tiver foto, a do currículo aparece no relatório para o candidato escolher trocar.
 
 ## Blindagem do código (antes e depois de mexer)
 

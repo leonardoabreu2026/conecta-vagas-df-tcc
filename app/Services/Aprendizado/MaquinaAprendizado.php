@@ -514,7 +514,40 @@ final class MaquinaAprendizado {
         return self::$calibracoes;
     }
 
-    // ================================================================== manutenção (painel)
+    // ================================================================== manutenção AUTOMÁTICA
+
+    /** De quantas em quantas horas a máquina estuda sozinha o que já está cadastrado. */
+    public const ESTUDO_A_CADA_HORAS = 24;
+
+    /**
+     * MANUTENÇÃO AUTOMÁTICA — ninguém precisa abrir painel nem calibrar nada:
+     *  - estuda sozinha, no máximo uma vez a cada ESTUDO_A_CADA_HORAS, tudo o que foi cadastrado e revisado por
+     *    pessoas (vagas, cursos e perfis públicos) — aprende o que é novo e só confirma o que já sabia;
+     *  - cada estudo recalibra a temperatura dos modelos (confiança honesta);
+     *  - o período de experiência olha o desempenho RECENTE (AprendizadoDAO::registrarProva guarda uma janela):
+     *    se a máquina começar a errar, ela perde o direito de decidir e a regra volta a valer até ela provar de novo;
+     *  - lição contraditória se corrige sozinha: a correção mais recente vale (AprendizadoDAO::registrarExemplo).
+     * Chamada ao abrir a visão geral do painel. Nunca lança erro: falhou, fica para a próxima.
+     * @return int lições estudadas agora (0 = ainda não era hora ou máquina desligada)
+     */
+    public static function manutencaoAutomatica(?int $usuarioId = null): int {
+        if (!self::$ligada) return 0;
+        $marca = LOG_DIR.'aprendizado_ultimo_estudo.txt';
+        $ultima = is_file($marca) ? (int)@file_get_contents($marca) : 0;
+        if (time() - $ultima < self::ESTUDO_A_CADA_HORAS * 3600) return 0;
+        @file_put_contents($marca, (string)time(), LOCK_EX);   // marca antes: duas abas abertas não estudam em dobro
+        try {
+            @set_time_limit(300);
+            return self::aprenderComHistorico('vaga', (new VagaDAO())->listar(false), $usuarioId)
+                 + self::aprenderComHistorico('curso', (new CursoDAO())->listar(false), $usuarioId)
+                 + self::aprenderComHistorico('curriculo', (new PerfilDAO())->listarCandidatos(), $usuarioId);
+        } catch (Throwable $e) {
+            self::registrarFalha('fazer a manutenção automática', $e);
+            return 0;
+        }
+    }
+
+    // ================================================================== manutenção (painel técnico, fora do menu)
 
     /** Apaga uma lição (e desconta as palavras dela do modelo). */
     public static function esquecer(int $id): bool {

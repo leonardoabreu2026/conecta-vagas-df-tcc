@@ -18,10 +18,13 @@ final class ArquivoController extends Controller {
     public function imagem(string $caminho): void {
         $path = caminho_upload($caminho);
         $mime = $path !== null && is_file($path) ? ((new finfo(FILEINFO_MIME_TYPE))->file($path) ?: '') : '';
-        if (!in_array($mime, self::IMAGENS, true)) {
-            pagina_erro(404, 'Arquivo não encontrado', '<p>A imagem solicitada não existe ou foi removida.</p>');
+        // PDF só da BIBLIOTECA (e-books da plataforma, nome biblioteca_*): currículo nunca sai por aqui.
+        $pdfBiblioteca = $mime === 'application/pdf' && eh_pdf_biblioteca($caminho);
+        if (!in_array($mime, self::IMAGENS, true) && !$pdfBiblioteca) {
+            pagina_erro(404, 'Arquivo não encontrado', '<p>O arquivo solicitado não existe ou foi removido.</p>');
         }
         header('Content-Type: '.$mime);
+        if ($pdfBiblioteca) header('Content-Disposition: inline; filename="'.safe_filename(basename($path)).'"');
         header('X-Content-Type-Options: nosniff');
         // O nome do arquivo muda a cada envio, então o navegador pode guardar a imagem em cache.
         header('Cache-Control: public, max-age=604800');

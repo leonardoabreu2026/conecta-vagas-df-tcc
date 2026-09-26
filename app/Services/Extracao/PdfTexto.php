@@ -97,6 +97,89 @@ final class PdfTexto {
         return $out;
     }
 
+    /**
+     * Imagens do PDF que podem ser a foto do candidato: os JPEG (DCTDecode) como estão e as imagens
+     * compactadas (FlateDecode, RGB ou cinza, 8 bits — é assim que o Word e o Canva costumam gravar uma
+     * foto que era PNG), remontadas em PNG aqui mesmo, sem biblioteca. Máscaras de transparência (/SMask)
+     * ficam de fora: não são fotos.
+     * @return list<string> bytes de JPEG ou PNG
+     */
+    public function imagens(int $maxPixels = 3_000_000): array {
+        $out = $this->imagensJpeg();
+        $mascaras = [];
+        foreach ($this->objs as $dict) if (preg_match_all('/\/SMask\s+(\d+)\s+\d+\s+R/', $dict, $m)) foreach ($m[1] as $n) $mascaras[(int)$n] = true;
+        foreach ($this->objs as $num => $dict) {
+            if (isset($mascaras[$num]) || !isset($this->streams[$num]) || !preg_match('/\/Subtype\s*\/Image/', $dict)) continue;
+            if (!preg_match('/\/Filter\s*(?:\/FlateDecode|\[\s*\/FlateDecode\s*\])/', $dict)) continue;
+            try {
+                $v = $this->valor($dict);
+                if (!is_array($v)) continue;
+                $w = (int)$this->resolver($v['Width'] ?? 0); $h = (int)$this->resolver($v['Height'] ?? 0);
+                $comp = $this->componentesCor($v['ColorSpace'] ?? null);
+                if ((int)$this->resolver($v['BitsPerComponent'] ?? 8) !== 8 || !$comp || $w < 80 || $h < 80 || $w * $h > $maxPixels) continue;
+                $raw = $this->inflar($this->streams[$num]);
+                if ($raw === null) continue;
+                $this->orcamento -= strlen($raw);
+                if ($this->orcamento < 0) self::grandeDemais();
+                $parms = $this->resolver($v['DecodeParms'] ?? null);
+                if (is_array($parms) && isset($parms[0])) $parms = $this->resolver($parms[0]);
+                if (is_array($parms) && (int)($parms['Predictor'] ?? 1) >= 10) $raw = self::desfiltrarPng($raw, $w * $comp, $comp);
+                if (strlen($raw) < $w * $h * $comp) continue;
+                $out[] = self::montarPng($raw, $w, $h, $comp);
+            } catch (LengthException $e) {
+                throw $e;
+            } catch (Throwable) {
+                continue;   // imagem num formato que não sabemos remontar: segue para a próxima
+            }
+        }
+        return $out;
+    }
+
+    /** Canais de cor de um /ColorSpace: 3 (RGB), 1 (cinza) ou 0 (formato não suportado: CMYK, indexado...). */
+    private function componentesCor(mixed $cs): int {
+        $cs = $this->resolver($cs);
+        if ($cs === '/DeviceRGB' || $cs === '/CalRGB') return 3;
+        if ($cs === '/DeviceGray' || $cs === '/CalGray') return 1;
+        if (is_array($cs) && ($cs[0] ?? '') === '/ICCBased') {
+            $icc = $this->resolver($cs[1] ?? null);
+            $n = is_array($icc) ? (int)$this->resolver($icc['N'] ?? 0) : 0;
+            return in_array($n, [1, 3], true) ? $n : 0;
+        }
+        if (is_array($cs) && in_array($cs[0] ?? '', ['/CalRGB', '/CalGray'], true)) return $cs[0] === '/CalRGB' ? 3 : 1;
+        return 0;
+    }
+
+    /** Desfaz os filtros PNG por linha (None, Sub, Up, Average, Paeth), com bpp bytes por pixel. */
+    private static function desfiltrarPng(string $d, int $bytesLinha, int $bpp): string {
+        $out = ''; $ant = str_repeat("\0", $bytesLinha); $w = $bytesLinha + 1;
+        for ($i = 0; $i + $w <= strlen($d); $i += $w) {
+            $tipo = ord($d[$i]); $linha = substr($d, $i + 1, $bytesLinha);
+            if ($tipo === 0) { $out .= $linha; $ant = $linha; continue; }
+            $nova = $linha;
+            for ($j = 0; $j < $bytesLinha; $j++) {
+                $a = $j >= $bpp ? ord($nova[$j - $bpp]) : 0; $b = ord($ant[$j]); $c = $j >= $bpp ? ord($ant[$j - $bpp]) : 0; $x = ord($linha[$j]);
+                $pred = match ($tipo) {
+                    1 => $a, 2 => $b, 3 => intdiv($a + $b, 2),
+                    4 => (function () use ($a, $b, $c) { $p = $a + $b - $c; $pa = abs($p - $a); $pb = abs($p - $b); $pc = abs($p - $c);
+                                return $pa <= $pb && $pa <= $pc ? $a : ($pb <= $pc ? $b : $c); })(),
+                    default => 0,
+                };
+                $nova[$j] = chr(($x + $pred) & 0xFF);
+            }
+            $out .= $nova; $ant = $nova;
+        }
+        return $out;
+    }
+
+    /** Pixels crus (RGB ou cinza, 8 bits) → arquivo PNG (IHDR + IDAT + IEND). */
+    private static function montarPng(string $raw, int $w, int $h, int $comp): string {
+        $bytesLinha = $w * $comp; $linhas = '';
+        for ($y = 0; $y < $h; $y++) $linhas .= "\0".substr($raw, $y * $bytesLinha, $bytesLinha);
+        $pedaco = fn(string $tipo, string $dados) => pack('N', strlen($dados)).$tipo.$dados.pack('N', crc32($tipo.$dados));
+        return "\x89PNG\r\n\x1a\n".$pedaco('IHDR', pack('NNCCCCC', $w, $h, 8, $comp === 3 ? 2 : 0, 0, 0, 0))
+             .$pedaco('IDAT', (string)gzcompress($linhas, 6)).$pedaco('IEND', '');
+    }
+
     /** Números dos objetos de página, na ordem da árvore /Pages (ou do arquivo, se não houver árvore). */
     private function paginas(): array {
         $raiz = null;

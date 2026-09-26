@@ -172,12 +172,22 @@ final class AprendizadoDAO {
         });
     }
 
-    /** Soma uma prova (e um acerto, se ele acertou). */
+    /** Tamanho da janela de provas: passou disso, o placar cai pela metade e as provas recentes pesam mais. */
+    public const JANELA_PROVAS = 200;
+
+    /**
+     * Soma uma prova (e um acerto, se ele acertou). Memória RECENTE: quando passa de JANELA_PROVAS, provas e
+     * acertos caem pela metade (a proporção se mantém). Assim, se o modelo começar a errar, a precisão cai rápido,
+     * ele perde a liberação e a regra volta a decidir sozinha — sem ninguém precisar zerar ou recalibrar.
+     */
     public function registrarProva(string $modelo, bool $acertou): void {
         $this->comTabelas(function () use ($modelo, $acertou) {
-            Database::getConexao()->prepare("INSERT INTO aprendizado_provas(modelo, provas, acertos) VALUES(?, 1, ?)
-                                             ON DUPLICATE KEY UPDATE provas = provas + 1, acertos = acertos + VALUES(acertos)")
-                ->execute([$modelo, $acertou ? 1 : 0]);
+            $db = Database::getConexao();
+            $db->prepare("INSERT INTO aprendizado_provas(modelo, provas, acertos) VALUES(?, 1, ?)
+                          ON DUPLICATE KEY UPDATE provas = provas + 1, acertos = acertos + VALUES(acertos)")
+               ->execute([$modelo, $acertou ? 1 : 0]);
+            $db->prepare("UPDATE aprendizado_provas SET provas = provas DIV 2, acertos = ROUND(acertos / 2) WHERE modelo=? AND provas > ?")
+               ->execute([$modelo, self::JANELA_PROVAS]);
         });
     }
 

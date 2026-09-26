@@ -179,11 +179,16 @@ E duas **memórias de nomes**. Elas não usam estatística: são uma lista de no
   (e as palavras delas saem do modelo).
 - **Nunca derruba a página.** Na extração e no salvamento, qualquer erro no aprendizado (banco desligado, tabela
   faltando) vai para o log do PHP e tudo segue normal, só sem aprender.
-- **Tem botão de desfazer.** No painel dá para esquecer uma lição errada ou zerar um modelo inteiro.
+- **Se mantém sozinha.** Uma vez por dia (ao abrir a visão geral do painel) ela estuda o que foi cadastrado e
+  revisado, recalibra a confiança e confere o desempenho **recente** (as provas guardam só uma janela de
+  `AprendizadoDAO::JANELA_PROVAS`): se começar a errar, perde a liberação e a regra volta a valer até ela provar de
+  novo. Lição contraditória se corrige sozinha (vale a correção mais recente). Ninguém precisa calibrar nada.
+- **Tem como desfazer.** Na tela técnica dá para esquecer uma lição errada ou zerar um modelo inteiro.
 
-## 7. Painel "Aprendizado da máquina"
+## 7. Tela técnica "Aprendizado da máquina"
 
-Painel → aba **Aprendizado da máquina** (só administrador), endereço `admin/pages/aprendizado.php`.
+Fora do menu (a máquina se mantém sozinha); para a apresentação técnica, o administrador abre direto o endereço
+`admin/pages/aprendizado.php`.
 
 ![Painel do aprendizado da máquina](img/aprendizado-painel.png)
 

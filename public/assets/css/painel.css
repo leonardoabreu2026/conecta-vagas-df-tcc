@@ -301,11 +301,6 @@ body.cv .ml-memorias h3{margin:0 0 8px;font-size:14px;color:var(--gf-tinta)}
 .ml-filtro select{width:auto;padding:7px 10px;font-size:13.5px}
 .ml-texto-licao{max-width:380px;overflow:hidden;text-overflow:ellipsis}
 /* Decisões da máquina dentro do relatório da extração (vaga e curso) */
-.ml-decisoes{margin:12px 0 0;padding:10px 14px;background:#f3f7fd;border:1px solid #d6e3f7;border-radius:10px;font-size:13.5px;color:var(--gf-tinta2,#3f4a5c)}
-.ml-decisoes-tit{display:flex;gap:8px;align-items:flex-start;margin:0 0 6px;color:#1f3d6d}
-.ml-decisoes-tit .ic{flex:none;margin-top:2px}
-.ml-decisoes ul{margin:0;padding-left:22px}
-.ml-decisoes li+li{margin-top:3px}
 .ml-campo{display:inline-block;min-width:64px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#5f6b7c}
 .ml-det{color:#5f6b7c}
 @media (max-width:900px){
@@ -341,3 +336,7 @@ body.cv .ml-memorias h3{margin:0 0 8px;font-size:14px;color:var(--gf-tinta)}
 .imp-cobertura .table-wrap{margin:10px 0 0}
 .pm-img-link{display:flex;align-items:center;gap:10px}
 .pm-img-link input{flex:1;min-width:0}
+.cx-extrair{margin:0 0 20px;padding:14px 16px;background:#f5f9ff;border:1px dashed #a9c4ee;border-radius:var(--cv-raio)}
+.cx-extrair textarea{font-family:ui-monospace,Consolas,monospace;font-size:13px}
+.cx-extrair .form-actions{align-items:center;gap:12px;flex-wrap:wrap}
+.pn-trocar-img{font-size:12px;font-weight:650;color:#8f4300!important}

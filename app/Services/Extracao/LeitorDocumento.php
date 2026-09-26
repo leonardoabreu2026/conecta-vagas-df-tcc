@@ -255,8 +255,13 @@ final class LeitorDocumento {
     // ------------------------------------------------------------------ foto
 
     /**
-     * Procura uma foto do candidato dentro do arquivo (DOCX: word/media; PDF: imagens JPEG).
-     * Aceita só JPG/PNG de tamanho razoável e proporção de retrato/quadrada (descarta ícones e banners).
+     * Procura a FOTO do candidato dentro do arquivo (DOCX: word/media; PDF: imagens JPEG e compactadas).
+     *
+     * PADRÃO DE FOTO DE CURRÍCULO (pontuacaoFoto): entre as imagens do arquivo, vence a que mais parece um
+     * retrato — tons de pele, muitas cores/tons (fotografia, não logotipo ou ícone), proporção de retrato
+     * ou quadrada e tamanho de foto. Ficam de fora: ícones pequenos, banners, logotipos de poucas cores e a
+     * página inteira escaneada (proporção de folha A4 em tamanho grande).
+     * A foto escolhida sai como JPEG de até 800 px (leve para o perfil).
      * @return array{dados:string,ext:string,largura:int,altura:int}|null
      */
     public static function extrairFoto(string $path): ?array {
@@ -269,26 +274,83 @@ final class LeitorDocumento {
                     if (preg_match('#^word/media/[^/]+\.(jpe?g|png)$#i', $n)) { $d = $ler($n); if ($d !== null) $candidatas[] = $d; }
                 }
             } elseif ($ext === 'pdf') {
-                $candidatas = (new PdfTexto((string)file_get_contents($path)))->imagensJpeg();
+                $candidatas = (new PdfTexto((string)file_get_contents($path)))->imagens();
             }
         } catch (Throwable) {
             return null;
         }
-        $melhor = null;
+        $melhor = null; $melhorNota = 0.0;
         foreach ($candidatas as $d) {
             $tam = strlen($d);
-            if ($tam < 2048 || $tam > 5 * 1024 * 1024) continue;
+            if ($tam < 2048 || $tam > 12 * 1024 * 1024) continue;
             $info = @getimagesizefromstring($d);
             if (!$info || !in_array($info[2] ?? 0, [IMAGETYPE_JPEG, IMAGETYPE_PNG], true)) continue;
             [$w, $h] = [(int)$info[0], (int)$info[1]];
             if ($w < 80 || $h < 80 || $w > 6000 || $h > 6000) continue;
             $prop = $w / $h;
-            if ($prop < 0.55 || $prop > 1.6) continue;
-            if ($melhor === null || $w * $h > $melhor['largura'] * $melhor['altura']) {
-                $melhor = ['dados' => $d, 'ext' => $info[2] === IMAGETYPE_PNG ? 'png' : 'jpg', 'largura' => $w, 'altura' => $h];
+            if ($prop < 0.5 || $prop > 1.7) continue;                                   // banner, faixa ou coluna
+            if ($prop > 0.66 && $prop < 0.76 && max($w, $h) >= 1200) continue;          // página A4 escaneada
+            $nota = self::pontuacaoFoto($d, $w, $h);
+            if ($nota > $melhorNota) { $melhorNota = $nota; $melhor = ['dados' => $d, 'ext' => $info[2] === IMAGETYPE_PNG ? 'png' : 'jpg', 'largura' => $w, 'altura' => $h]; }
+        }
+        return $melhor ? self::fotoLeve($melhor) : null;
+    }
+
+    /**
+     * Nota de "parece foto de currículo" (0 = não é). Sem a extensão GD, só a proporção e o tamanho contam.
+     * Com GD, a imagem é reduzida para 64 px e analisada:
+     *  - pele: fração de pixels com tom de pele (regra RGB clássica de detecção de pele);
+     *  - variedade: quantos tons diferentes (fotografia tem centenas; logotipo e ícone, poucos);
+     *  - foto em preto e branco também vale (muitos tons de cinza).
+     */
+    public static function pontuacaoFoto(string $dados, int $w, int $h): float {
+        $prop = $w / $h;
+        $forma = $prop >= 0.65 && $prop <= 1.05 ? 1.0 : 0.6;                 // retrato 3x4 ou quadrada
+        $tamanho = min($w, $h) >= 150 && max($w, $h) <= 2500 ? 1.0 : 0.7;
+        if (!function_exists('imagecreatefromstring')) return $forma * $tamanho;
+        $img = @imagecreatefromstring($dados);
+        if (!$img) return 0.0;
+        $pw = 64; $ph = max(1, (int)round(64 / $prop));
+        $peq = imagecreatetruecolor($pw, $ph);
+        imagecopyresampled($peq, $img, 0, 0, 0, 0, $pw, $ph, $w, $h);
+        imagedestroy($img);
+        $pele = 0; $tons = []; $cinzas = []; $coloridos = 0; $total = $pw * $ph;
+        for ($y = 0; $y < $ph; $y++) {
+            for ($x = 0; $x < $pw; $x++) {
+                $c = imagecolorat($peq, $x, $y); $r = ($c >> 16) & 0xFF; $g = ($c >> 8) & 0xFF; $b = $c & 0xFF;
+                $tons[($r >> 4) << 8 | ($g >> 4) << 4 | ($b >> 4)] = true;
+                $cinzas[intdiv($r + $g + $b, 12)] = true;
+                if (max($r, $g, $b) - min($r, $g, $b) > 20) $coloridos++;
+                if ($r > 95 && $g > 40 && $b > 20 && max($r, $g, $b) - min($r, $g, $b) > 15 && abs($r - $g) > 15 && $r > $g && $r > $b) $pele++;
             }
         }
-        return $melhor;
+        imagedestroy($peq);
+        $fPele = $pele / $total; $variedade = count($tons);
+        $pretoBranco = $coloridos / $total < 0.05;
+        if ($pretoBranco) {
+            if (count($cinzas) < 30) return 0.0;                              // desenho ou texto em cinza
+            return 0.8 * $forma * $tamanho;
+        }
+        if ($variedade < 40) return 0.0;                                      // logotipo, ícone, fundo liso
+        if ($fPele < 0.02) return 0.15 * $forma * $tamanho;                   // colorida sem pele: só se não houver outra
+        // Retrato: pele entre ~5% e ~70% da imagem é o mais comum; muito acima disso é textura/fundo cor de pele.
+        $notaPele = $fPele > 0.85 ? 0.3 : min(1.0, $fPele / 0.08);
+        return (1.0 + 2.0 * $notaPele + min(1.0, $variedade / 300)) * $forma * $tamanho;
+    }
+
+    /** Foto escolhida em JPEG de até 800 px (sem GD, fica como veio). */
+    private static function fotoLeve(array $f): array {
+        if (!function_exists('imagecreatefromstring') || (($f['ext'] === 'jpg') && max($f['largura'], $f['altura']) <= 800)) return $f;
+        $img = @imagecreatefromstring($f['dados']);
+        if (!$img) return $f;
+        $esc = min(1.0, 800 / max($f['largura'], $f['altura']));
+        [$nw, $nh] = [max(1, (int)round($f['largura'] * $esc)), max(1, (int)round($f['altura'] * $esc))];
+        $novo = imagecreatetruecolor($nw, $nh);
+        imagefill($novo, 0, 0, imagecolorallocate($novo, 255, 255, 255));    // PNG com transparência: fundo branco
+        imagecopyresampled($novo, $img, 0, 0, 0, 0, $nw, $nh, $f['largura'], $f['altura']);
+        ob_start(); imagejpeg($novo, null, 86); $jpg = (string)ob_get_clean();
+        imagedestroy($img); imagedestroy($novo);
+        return $jpg !== '' ? ['dados' => $jpg, 'ext' => 'jpg', 'largura' => $nw, 'altura' => $nh] : $f;
     }
 
     // ------------------------------------------------------------------ DOC

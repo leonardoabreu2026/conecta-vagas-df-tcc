@@ -6,7 +6,7 @@ declare(strict_types=1);
  * CONFERÊNCIA DE SINTAXE — todos os arquivos PHP do projeto
  * ============================================================
  * Uso: C:\xampp\php\php.exe tests\lint.php
- * Roda "php -l" em cada .php (app, config, database, public, tests) e termina com código 1
+ * Roda "php -l" em cada .php (app, config, database, docs, public, tests) e termina com código 1
  * se algum tiver erro. Usado pelo gancho de commit (.githooks/pre-commit) e por tests\verificar.bat.
  */
 
@@ -14,7 +14,7 @@ if (PHP_SAPI !== 'cli') { http_response_code(403); exit('Somente pelo terminal.'
 
 $raiz = dirname(__DIR__);
 $arquivos = [];
-foreach (['app', 'config', 'database', 'public', 'tests'] as $pasta) {
+foreach (['app', 'config', 'database', 'docs', 'public', 'tests'] as $pasta) {
     $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($raiz.DIRECTORY_SEPARATOR.$pasta, FilesystemIterator::SKIP_DOTS));
     foreach ($it as $f) if ($f->isFile() && strtolower($f->getExtension()) === 'php') $arquivos[] = $f->getPathname();
 }

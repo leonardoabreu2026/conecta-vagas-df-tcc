@@ -124,7 +124,7 @@ final class CursoController extends Controller {
         $formato = pt_formato((string)$curso['tipo']);
         [$secaoNome, $secaoUrl, $secaoIcone] = pt_secao_formato((string)$curso['tipo']);
         $instituicao = $curso['instituicao'] ?: 'Instituição parceira';
-        $ext = pt_url_externa($curso['url'] ?? '');
+        $acesso = pt_acesso_conteudo($curso);   // "Baixar" (PDF da biblioteca) ou "Acessar" (link da web)
         $link = url('curso.php?id='.$id);
         $abaTipo = [$secaoNome => $secaoUrl];
 

@@ -236,13 +236,29 @@ banco de talentos têm "Ordem:" no filtro. A lógica fica em `app/Core/helpers.p
 `paginar()`, `painel_qs()`) — as ações (salvar, publicar, excluir) voltam para a mesma aba, filtros, ordem e página.
 Abrir "Editar"/"Ver" de um registro que não existe mais avisa e volta para a lista (`registro_encontrado()`).
 
-**Prompt mestre para IAs de pesquisa** (`PromptsPesquisa`, painel → Cursos e e-books): um prompt por IA
-(Perplexity, ChatGPT, Gemini, Copilot, Claude) para configurar uma vez; depois cada mensagem é uma lista de links
-ou títulos e a IA responde uma ficha por item. Há também o prompt avulso (links/títulos já dentro). O formato da
-ficha é um só (`PromptsPesquisa::formatoFicha`), o mesmo da pesquisa guiada e o mesmo que `ExtracaoCurso::fichas()`
-lê: uma ficha colada na "Máquina de extração" preenche o formulário inteiro; o link da imagem é conferido
-(`ImagemRemota::completar`) e baixado só ao salvar (`ImagemRemota::baixar`). Cópia dos prompts em
-[PROMPTS_PESQUISA.md](PROMPTS_PESQUISA.md).
+**Cadastro de cursos e e-books** (painel → Cursos e e-books): uma caixa só, **Extrair**. Uma ficha (ou texto de
+divulgação) preenche o formulário; várias fichas abrem a prévia de importação. O formato da ficha é um só
+(`PromptsPesquisa::formatoFicha`, o mesmo que `ExtracaoCurso::fichas()` lê); o prompt padrão das IAs de pesquisa
+fica fora do painel, em [PROMPTS_PESQUISA.md](PROMPTS_PESQUISA.md) (gerado por `docs/gerar_prompts.php`).
+- Imagem: a da ficha é conferida (`ImagemRemota::completar`) e baixada ao salvar (`ImagemRemota::baixar`); sem
+  imagem, entra o banner da instituição ou a **imagem padrão** (`CursoDAO::IMAGENS_PADRAO`, em
+  `public/assets/img/padrao/`), e a lista marca *trocar imagem*.
+- **Biblioteca**: o PDF enviado no cadastro vai para `storage/uploads/biblioteca_*.pdf` (conferido pelo conteúdo,
+  até 25 MB) e é entregue ao público por `ArquivoController::imagem` — só PDFs com esse prefixo, então currículo
+  nunca sai por ali. O botão é decidido pelo endereço (`pt_acesso_conteudo`): biblioteca → **Baixar** (download);
+  web → **Acessar** (nova aba).
+- A instituição é padronizada pelo link oficial ao salvar e ao importar (`FontesCursos::nomeOficial`).
+
+**Manutenção automática** (`manutencao_diaria()` em `app/Core/Upload.php`, disparada pela visão geral do
+administrador, no máximo 1x por dia): limpa arquivos órfãos de `storage/uploads` (`limpar_uploads_orfaos`: sem
+registro que os use e com mais de 24 h) e chama `MaquinaAprendizado::manutencaoAutomatica()` (estuda o histórico,
+recalibra; as provas guardam só a janela recente — `AprendizadoDAO::JANELA_PROVAS` — então a máquina perde a
+liberação sozinha se piorar). A tela técnica da máquina saiu do menu (continua em `admin/pages/aprendizado.php`).
+
+**Foto do currículo** (`LeitorDocumento::extrairFoto`): candidatas do DOCX (`word/media`) e do PDF (JPEG e imagens
+FlateDecode RGB/cinza remontadas em PNG por `PdfTexto::imagens`); vence a de maior `pontuacaoFoto` (tons de pele,
+variedade de cores, proporção de retrato; descarta logotipo, ícone, banner e página A4 escaneada), salva como JPEG
+de até 800 px. Sem foto no perfil, é aplicada; com foto, fica como opção no relatório da extração.
 
 **Blindagem do código**: `tests/lint.php` (sintaxe de todos os PHP), `tests/verificar.bat` (lint + smoke com
 clique duplo) e o gancho `.githooks/pre-commit` (`git config core.hooksPath .githooks`), que barra o commit se a

@@ -86,21 +86,27 @@ final class CurriculoController extends Controller {
         $calc = AplicacaoCurriculo::calcular($p, $campos, $substituir);
         $dados = $calc['dados']; $itens = $calc['itens'];
 
-        // Foto embutida no arquivo: usada só se o candidato ainda não tem foto.
+        // Foto embutida no arquivo (LeitorDocumento::extrairFoto, padrão de foto de currículo):
+        // sem foto no perfil → vira a foto do perfil; já com foto → fica guardada para o candidato trocar, se quiser.
+        $fotoAntigaPendente = (string)($_SESSION['relatorio_extracao']['pendentes']['foto'] ?? '');
+        if ($fotoAntigaPendente !== '' && $fotoAntigaPendente !== (string)($p['foto'] ?? '')) apagar_upload_sem_uso($fotoAntigaPendente);   // de um relatório anterior, não usada
         $fotoArq = $texto !== '' ? LeitorDocumento::extrairFoto($dest) : null;
-        $fotoItem = ['campo' => 'foto', 'rotulo' => 'Foto', 'valor' => '', 'status' => 'nao_encontrado', 'atual' => (string)($p['foto'] ?? '')];
+        $fotoItem = ['campo' => 'foto', 'rotulo' => 'Foto', 'valor' => '', 'status' => 'nao_encontrado', 'atual' => !empty($p['foto']) ? 'foto atual do perfil' : ''];
+        $fotoPendente = null;
         if ($fotoArq) {
-            if (empty($p['foto'])) {
-                $caminho = AplicacaoCurriculo::salvarFoto($fotoArq, $usuarioId);
-                if ($caminho) { $dados['foto'] = $caminho; $fotoItem = array_merge($fotoItem, ['valor' => 'Foto encontrada no arquivo ('.$fotoArq['largura'].'×'.$fotoArq['altura'].')', 'status' => 'aplicado']); }
-            } else {
-                $fotoItem = array_merge($fotoItem, ['valor' => 'Foto encontrada no arquivo', 'status' => 'mantido']);
+            $caminho = AplicacaoCurriculo::salvarFoto($fotoArq, $usuarioId);
+            if ($caminho && empty($p['foto'])) {
+                $dados['foto'] = $caminho;
+                $fotoItem = array_merge($fotoItem, ['valor' => 'Foto encontrada no currículo ('.$fotoArq['largura'].'×'.$fotoArq['altura'].')', 'status' => 'aplicado', 'imagem' => $caminho]);
+            } elseif ($caminho) {
+                $fotoPendente = $caminho;
+                $fotoItem = array_merge($fotoItem, ['valor' => 'Foto encontrada no currículo ('.$fotoArq['largura'].'×'.$fotoArq['altura'].')', 'status' => 'mantido', 'imagem' => $caminho]);
             }
         }
 
         if ($texto !== '' && !AplicacaoCurriculo::salvar($dados)) {
             @unlink($dest);
-            if (!empty($caminho) && ($fotoSalva = caminho_upload($caminho)) !== null) @unlink($fotoSalva);
+            if (!empty($caminho)) apagar_upload_sem_uso($caminho);
             flash('erro', 'Não foi possível atualizar o perfil com os dados do currículo.');
             redirect('view/perfil/index.php');
         }
@@ -165,8 +171,8 @@ final class CurriculoController extends Controller {
             'metodo' => $metodo,
             'quando' => date('d/m/Y H:i'),
             'substituir' => $substituir,
-            'itens' => array_map(fn($i) => ['campo' => $i['campo'], 'rotulo' => $i['rotulo'], 'valor' => AplicacaoCurriculo::resumo((string)$i['valor']), 'atual' => AplicacaoCurriculo::resumo((string)$i['atual'], 80), 'status' => $i['status']], $todos),
-            'pendentes' => $calc['pendentes'],
+            'itens' => array_map(fn($i) => ['campo' => $i['campo'], 'rotulo' => $i['rotulo'], 'valor' => AplicacaoCurriculo::resumo((string)$i['valor']), 'atual' => AplicacaoCurriculo::resumo((string)$i['atual'], 80), 'status' => $i['status'], 'imagem' => (string)($i['imagem'] ?? '')], $todos),
+            'pendentes' => $calc['pendentes'] + ($fotoPendente ? ['foto' => $fotoPendente] : []),
             'nome_sugerido' => $nomeSugerido,
             'match' => $matchMsg,
         ];
@@ -214,6 +220,14 @@ final class CurriculoController extends Controller {
         // Campos do perfil mantidos na extração.
         $dados = AplicacaoCurriculo::dtoDe($p);
         $mudouPerfil = false;
+        // Foto do currículo no lugar da foto atual (o arquivo já foi guardado na leitura do currículo).
+        $fotoTrocada = '';
+        if (in_array('foto', $escolhidos, true) && isset($pendentes['foto']) && caminho_upload((string)$pendentes['foto']) !== null) {
+            $fotoTrocada = (string)($p['foto'] ?? '');
+            $dados['foto'] = (string)$pendentes['foto'];
+            unset($pendentes['foto']);
+            $aplicados[] = 'foto'; $mudouPerfil = true;
+        }
         foreach ($escolhidos as $col) {
             if (!isset(AplicacaoCurriculo::CAMPOS[$col], $pendentes[$col])) continue;
             $dados[$col] = (string)$pendentes[$col];
@@ -221,6 +235,7 @@ final class CurriculoController extends Controller {
             $aplicados[] = $col; $mudouPerfil = true;
         }
         if ($mudouPerfil && !AplicacaoCurriculo::salvar($dados)) { flash('erro', 'Não foi possível aplicar os dados escolhidos.'); redirect('view/perfil/portfolio.php?relatorio=1'); }
+        if ($fotoTrocada !== '') apagar_upload_sem_uso($fotoTrocada);   // a foto antiga só sai depois que a nova foi salva
 
         // Atualiza o relatório: o que foi aplicado agora deixa de estar "mantido"/"sugerido".
         foreach ($rel['itens'] as &$i) if (in_array($i['campo'], $aplicados, true)) $i['status'] = 'aplicado';

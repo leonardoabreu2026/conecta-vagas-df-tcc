@@ -3,7 +3,7 @@
  * Página do curso / e-book / vídeo (rota curso.php?id=): capa, descrição, competências desenvolvidas,
  * ficha e botão de acesso; abaixo, vagas que pedem essas competências e outros conteúdos do mesmo formato.
  * Recebe de CursoController::detalhe(): $curso, $id, $competencias, $vagasQuePedem, $outros, $mapaMatch,
- * $faltaParaMim, $formato, $secaoNome/$secaoUrl/$secaoIcone (página do formato), $instituicao, $ext (link externo), $link e $abaTipo.
+ * $faltaParaMim, $formato, $secaoNome/$secaoUrl/$secaoIcone (página do formato), $instituicao, $acesso (botão Baixar/Acessar), $link e $abaTipo.
  */
 ?>
 <?=cv_faixa($curso['titulo'], $instituicao.' · '.$formato.' · '.pt_preco($curso), $abaTipo + [$curso['titulo'] => ''])?>
@@ -51,7 +51,7 @@
         <div><dt>Investimento</dt><dd><?=e(pt_preco($curso))?></dd></div>
       </dl>
       <div class="cv-acoes">
-        <?php if ($ext): ?><a class="cv-btn cv-btn-verde cv-btn-g" href="<?=e($ext)?>" target="_blank" rel="noopener"><?=icone('externo', 16)?><?=e(pt_cta_curso((string)$curso['tipo']))?><span class="sr-only"> (abre em nova aba)</span></a><?php endif; ?>
+        <?php if ($acesso): ?><a class="cv-btn cv-btn-verde cv-btn-g" href="<?=e($acesso['href'])?>"<?=$acesso['atributos']?>><?=icone($acesso['icone'], 16)?><?=e($acesso['longo'])?><span class="sr-only"><?=$acesso['baixar'] ? ' (arquivo PDF da biblioteca)' : ' (abre em nova aba)'?></span></a><?php endif; ?>
         <?php if (isAdmin()): ?><a class="cv-btn cv-btn-azul" href="<?=url('admin/pages/cursos.php?edit='.$id)?>"><?=icone('editar', 15)?>Editar conteúdo</a><?php endif; ?>
       </div>
       <div class="cv-compartilhar">

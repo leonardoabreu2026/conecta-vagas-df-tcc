@@ -9,6 +9,13 @@ final class CursoDAO {
     public const TIPOS = ['curso','ebook','video'];
     public const MODALIDADES = ['ead','presencial','hibrido'];
     public const NIVEIS = ['iniciante','intermediario','avancado'];
+    /** Imagem padrão da plataforma (conteúdo cadastrado sem imagem; troca-se depois em Editar). */
+    public const IMAGENS_PADRAO = ['curso' => 'assets/img/padrao/curso.jpg', 'ebook' => 'assets/img/padrao/ebook.jpg', 'video' => 'assets/img/padrao/video.jpg'];
+
+    public static function imagemPadrao(string $tipo): string { return self::IMAGENS_PADRAO[$tipo] ?? self::IMAGENS_PADRAO['curso']; }
+
+    /** O conteúdo ainda está com a imagem padrão (ou sem imagem)? A lista do painel marca para trocar. */
+    public static function ehImagemPadrao(string $imagem): bool { return $imagem === '' || in_array($imagem, self::IMAGENS_PADRAO, true); }
 
     /** Filtros opcionais: q, categoria_id, gratuito ('1'). */
     public function listar(bool $ativos = true, array $f = []): array {
@@ -62,31 +69,17 @@ final class CursoDAO {
         return true;
     }
 
-    /**
-     * Padroniza o nome da instituição pelo link oficial (FontesCursos): "Fundação Bradesco - Escola Virtual"
-     * e "Fundação Bradesco – Escola Virtual" viram um nome só. Devolve quantos conteúdos mudaram.
-     */
-    public function padronizarInstituicoes(): int {
-        $db = Database::getConexao();
-        $up = $db->prepare("UPDATE cursos SET instituicao=? WHERE id=?");
-        $n = 0;
-        foreach ($db->query("SELECT id, instituicao, url FROM cursos")->fetchAll() as $c) {
-            $nome = FontesCursos::nomeOficial((string)$c['instituicao'], (string)$c['url']);
-            if ($nome !== '' && $nome !== (string)$c['instituicao']) { $up->execute([mb_substr($nome, 0, 255), (int)$c['id']]); $n++; }
-        }
-        return $n;
-    }
-
     public function excluir(int $id): bool {
         try {
             $db = Database::getConexao();
-            $img = $db->prepare("SELECT imagem FROM cursos WHERE id=?");
-            $img->execute([$id]);
-            $imagem = (string)($img->fetchColumn() ?: '');
+            $arq = $db->prepare("SELECT imagem, url FROM cursos WHERE id=?");
+            $arq->execute([$id]);
+            $antes = $arq->fetch() ?: ['imagem' => '', 'url' => ''];
             $s = $db->prepare("DELETE FROM cursos WHERE id=?");
             $s->execute([$id]);
             if ($s->rowCount() < 1) return false;
-            apagar_upload_sem_uso($imagem); // só apaga se for upload e ninguém mais usar
+            apagar_upload_sem_uso((string)$antes['imagem']); // só apaga se for upload e ninguém mais usar
+            apagar_upload_sem_uso((string)$antes['url']);    // PDF da biblioteca (link da web é ignorado)
             return true;
         } catch (Throwable) {
             return false;

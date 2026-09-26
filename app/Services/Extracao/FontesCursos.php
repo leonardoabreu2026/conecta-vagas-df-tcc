@@ -153,7 +153,7 @@ REGRAS:
 1. Só links do site oficial da instituição, abrindo a página do próprio curso ou e-book (não a página inicial nem o resultado de busca). Abra o link antes de responder — não invente links. Conteúdo encerrado ou com inscrições fechadas fica de fora.
 2. Link direto do PDF é aceito para e-book, desde que seja do site oficial.
 3. Não repita conteúdos entre si nem os já cadastrados (lista no fim). Descrição curta e objetiva, sem propaganda.
-4. IMAGEM (obrigatória — sem ela o item não é cadastrado): endereço DIRETO de uma imagem oficial do item, terminando em .jpg, .jpeg, .png ou .webp. No e-book, a CAPA; no curso, a imagem de divulgação da página do curso. Nunca logotipo genérico, ícone ou imagem de outro site. Se não encontrar, escreva: Não encontrada.
+4. IMAGEM: endereço DIRETO de uma imagem oficial do item, terminando em .jpg, .jpeg, .png ou .webp. No e-book, a CAPA; no curso, a imagem de divulgação da página do curso. Nunca logotipo genérico, ícone ou imagem de outro site. Se não encontrar, escreva: Não encontrada (o item entra com a imagem padrão da plataforma).
 5. Instituição: use o nome como está na lista de fontes acima.
 6. Responda SOMENTE com as fichas abaixo, sem introdução, sem conclusão, sem tabela e sem negrito. Separe cada ficha com uma linha contendo apenas ---
 
