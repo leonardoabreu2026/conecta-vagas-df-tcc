@@ -10,6 +10,11 @@ declare(strict_types=1);
  * contratação, nível, modelo (presencial/remoto/híbrido), descrição, requisitos, benefícios,
  * contato do anúncio (WhatsApp/telefone/e-mail), quantidade de vagas, competências e categoria.
  * Os "avisos" dizem o que a máquina não conseguiu confirmar e merece atenção na revisão.
+ *
+ * APRENDIZADO: as regras abaixo são a base. Onde a regra costuma errar, a MaquinaAprendizado ajuda
+ * com o que aprendeu das vagas revisadas antes: nas linhas soltas (sem título de seção) e na área, ela
+ * pode trocar o palpite da regra; na empresa, só completa quando nenhuma regra achou o nome. Cada decisão da máquina vai para
+ * $r['maquina'] e aparece no relatório, para a pessoa saber o que foi aprendido e o que foi regra.
  */
 final class ExtracaoVaga {
     private const SECOES = [
@@ -113,7 +118,7 @@ final class ExtracaoVaga {
         $texto = trim(str_replace(["\r\n", "\r"], "\n", $texto));
         $r = ['titulo'=>'','descricao'=>'','requisitos'=>'','beneficios'=>'','tipo_vaga'=>'clt','nivel_experiencia'=>'junior','remoto'=>'presencial',
               'cidade'=>'','uf'=>'','salario_minimo'=>null,'salario_maximo'=>null,'categoria'=>'','competencias'=>[],
-              'anunciante'=>'','contato'=>'','quantidade'=>null,'cargos'=>[],'avisos'=>[],'padrao'=>[]];
+              'anunciante'=>'','contato'=>'','quantidade'=>null,'cargos'=>[],'avisos'=>[],'padrao'=>[],'maquina'=>[],'linhas'=>[]];
         $destaques = array_values(array_filter(array_map([self::class, 'limparLinha'], $ocr['destaques'] ?? [])));
         $complemento = array_values(array_filter(array_map([self::class, 'limparLinha'], $ocr['complemento'] ?? [])));
         if ($texto === '' && !$destaques) return ['padrao' => ['tipo_vaga', 'nivel_experiencia', 'remoto']] + $r;
@@ -141,6 +146,11 @@ final class ExtracaoVaga {
 
         // Cargo(s) e título.
         $r['anunciante'] = self::anunciante($tudo, $linhas, $destaques, $ocr['todas'] ?? []);
+        if ($r['anunciante'] === '') {
+            // Nenhuma regra achou a empresa: talvez seja uma que alguém já confirmou num anúncio anterior.
+            $r['anunciante'] = MaquinaAprendizado::nomeConhecido('vaga_empresa', $tudo);
+            if ($r['anunciante'] !== '') $r['maquina'][] = ['campo' => 'anunciante', 'texto' => $r['anunciante'], 'regra' => '', 'para' => $r['anunciante'], 'confianca' => null];
+        }
         // Cargos: das linhas e também das letras grandes do cartaz (o título decorado nem sempre entra no texto corrido).
         $r['cargos'] = self::cargos([...$linhas, ...array_slice($destaques, 0, 4)]);
         $r['titulo'] = self::titulo($linhas, $destaques, $complemento, $r['cargos'], $r['anunciante']);
@@ -187,11 +197,16 @@ final class ExtracaoVaga {
             if ($lt === '' || in_array($ln, $ignorar, true) || in_array($lt, $ignorar, true) || preg_match(self::GENERICOS, $lt) || !self::temPalavras($l)) continue;
             if (self::ehLocalSolto($ln)) continue; // já vai para o campo cidade
             if (self::soRotulos($ln)) continue;    // "ESCALA LOCAIS DE TRABALHO FORMATO", "Temos outras vagas também!"
-            if (preg_match(self::PALAVRAS_BENEFICIO, $ln)) $ben[] = $l;
-            elseif (preg_match(self::PALAVRAS_REQUISITO, $ln)) $req[] = $l;
-            elseif (preg_match(self::PALAVRAS_HORARIO, $ln)) $desc[] = $l;
+            // Palpite da regra pelas palavras-chave; o horário fica na descrição.
+            if (preg_match(self::PALAVRAS_BENEFICIO, $ln)) $regra = 'beneficios';
+            elseif (preg_match(self::PALAVRAS_REQUISITO, $ln)) $regra = 'requisitos';
+            elseif (preg_match(self::PALAVRAS_HORARIO, $ln)) $regra = 'descricao';
             elseif (self::ehCargo(self::limparTitulo($l)) && mb_strlen($l) <= 42) continue; // cargo solto: já está no título/"outras vagas"
-            else $desc[] = $l;
+            else $regra = 'descricao';
+            // A máquina de aprendizado confirma o palpite ou, se já aprendeu o contrário com confiança, troca.
+            $d = MaquinaAprendizado::decidir('vaga_linha', $l, $regra);
+            if ($d['origem'] === 'maquina') $r['maquina'][] = ['campo' => 'linha', 'texto' => $l, 'regra' => $regra, 'para' => $d['classe'], 'confianca' => $d['confianca'], 'motivos' => array_keys($d['motivos'])];
+            match ($d['classe']) { 'beneficios' => $ben[] = $l, 'requisitos' => $req[] = $l, default => $desc[] = $l };
         }
         foreach (['horario' => 'Horário', 'local' => 'Local'] as $extra => $rot) if (!empty($secoes[$extra])) $desc[] = $rot.': '.implode(' ', $secoes[$extra]);
         if (!isset($secoes['horario']) && preg_match('/\b(\d{1,2})\s*x\s*(\d{1,2})\b/', $n, $m) && in_array($m[1].'x'.$m[2], ['6x1','5x2','12x36','4x2','5x1','6x2'], true)
@@ -208,7 +223,12 @@ final class ExtracaoVaga {
         $r['beneficios'] = self::juntar($ben);
 
         $r['competencias'] = Competencias::daVaga($r);
-        $r['categoria'] = self::categoria($r['competencias'], Competencias::extrair($r['titulo']));
+        $regraCategoria = self::categoria($r['competencias'], Competencias::extrair($r['titulo']));
+        $d = MaquinaAprendizado::decidir('vaga_categoria', implode("\n", [$r['titulo'], $r['descricao'], $r['requisitos']]), $regraCategoria);
+        $r['categoria'] = $d['classe'];
+        if ($d['origem'] === 'maquina') $r['maquina'][] = ['campo' => 'categoria', 'texto' => $r['titulo'], 'regra' => $regraCategoria, 'para' => $d['classe'], 'confianca' => $d['confianca'], 'motivos' => array_keys($d['motivos'])];
+        // Guarda as linhas lidas: depois da revisão, a máquina confere em qual campo a pessoa deixou cada uma.
+        $r['linhas'] = $linhas;
 
         if ($r['titulo'] === '') $r['avisos'][] = 'Não encontramos o cargo: preencha o título.';
         if ($r['salario_minimo'] === null) $r['avisos'][] = 'Salário não informado no anúncio (ficará "A combinar").';

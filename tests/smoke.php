@@ -12,6 +12,7 @@ declare(strict_types=1);
  * Verifica, sem gravar nada no banco (a única mudança é +1 no contador de visualizações da vaga 1):
  *  1. se todas as classes de app/ carregam (autoloader);
  *  2. as regras principais: funções de apoio, extração de vagas/cursos e máquina de match;
+ *     e a máquina de aprendizado (Naive Bayes, correção humana, decisão híbrida) com modelos em memória;
  *  3. a conexão com o banco e as contas de teste;
  *  4. as páginas pelo navegador (HTTP) e o bloqueio das pastas internas.
  * Termina com código 1 se algo falhar.
@@ -28,14 +29,16 @@ function confere(string $descricao, bool $ok, string $detalhe = ''): void {
 
 // ------------------------------------------------------------
 echo PHP_EOL.'1. Classes (autoloader)'.PHP_EOL;
-foreach (['Controllers', 'Models', 'DTO', 'Services', 'Services/Extracao'] as $pasta) {
+foreach (['Controllers', 'Models', 'DTO', 'Services', 'Services/Extracao', 'Services/Aprendizado'] as $pasta) {
     $classes = array_map(fn($f) => basename($f, '.php'), glob(APP_DIR."/$pasta/*.php") ?: []);
-    $faltando = array_filter($classes, fn($c) => !class_exists($c));
+    $faltando = array_filter($classes, fn($c) => !class_exists($c) && !trait_exists($c));
     confere("app/$pasta: ".count($classes).' classe(s)', !$faltando, implode(', ', $faltando));
 }
 
 // ------------------------------------------------------------
 echo PHP_EOL.'2. Regras de negócio'.PHP_EOL;
+// As regras são conferidas SEM o aprendizado: o que a máquina aprendeu no banco não pode mudar estes resultados.
+MaquinaAprendizado::ligar(false);
 confere('decimal_ou_null("1.234,56") = 1234.56', decimal_ou_null('1.234,56') === 1234.56);
 confere('salario_texto(1900, 2500)', salario_texto(1900, 2500) === 'R$ 1.900,00 a R$ 2.500,00');
 confere('rotulo("em_analise") = "Em análise"', rotulo('em_analise') === 'Em análise');
@@ -123,6 +126,91 @@ confere('pt_secao_formato: cada formato tem a sua página (cursos, e-books, víd
     && pt_secao_formato('ebook')[1] === url('cursos.php?tipo=ebook') && pt_secao_formato('video')[1] === url('cursos.php?tipo=video')
     && pt_secao_formato('xyz')[0] === 'Cursos');
 
+// ------------------------------------------------------------
+echo PHP_EOL.'2b. Máquina de aprendizado (modelos em memória, sem banco)'.PHP_EOL;
+$pal = Tokenizador::palavras('Vale-Refeição de R$ 33,40 + Plano de Saúde');
+confere('Tokenizador: sem acento, sem palavra vazia, dinheiro marcado e pares vizinhos', in_array('vale refeicao', $pal, true) && in_array('#dinheiro', $pal, true)
+    && in_array('plano saude', $pal, true) && !in_array('de', $pal, true), implode(' | ', $pal));
+
+$nb = new NaiveBayes();
+foreach (['Vale transporte e vale refeição', 'Plano de saúde e odontológico', 'Vale alimentação de R$ 500', 'Seguro de vida', 'Uniforme fornecido pela empresa'] as $t) $nb->aprender(Tokenizador::palavras($t), 'beneficios');
+foreach (['Experiência de 6 meses na função', 'Ensino médio completo', 'Disponibilidade de horário', 'Experiência com atendimento'] as $t) $nb->aprender(Tokenizador::palavras($t), 'requisitos');
+foreach (['Atender clientes no balcão', 'Organizar o estoque da loja', 'Repor mercadorias nas prateleiras'] as $t) $nb->aprender(Tokenizador::palavras($t), 'descricao');
+$prev = $nb->prever(Tokenizador::palavras('Plano odontológico e vale transporte'));
+confere('NaiveBayes: aprende e prevê ("plano odontológico e vale transporte" → benefícios)', ($prev['classe'] ?? '') === 'beneficios' && $prev['confianca'] > 0.5
+    && abs(array_sum($prev['probabilidades']) - 1) < 1e-9, json_encode($prev, JSON_UNESCAPED_UNICODE));
+confere('NaiveBayes: explica a decisão pelas palavras que pesaram', array_key_exists('vale', $nb->explicar(Tokenizador::palavras('Plano odontológico e vale transporte'), 'beneficios')));
+confere('NaiveBayes: texto sem nenhuma palavra conhecida → não opina (null)', $nb->prever(Tokenizador::palavras('xyzw kkkk')) === null);
+$nb->esquecer(Tokenizador::palavras('Seguro de vida'), 'beneficios');
+confere('NaiveBayes: esquecer desfaz a lição (incremental nos dois sentidos)', $nb->exemplosPorClasse()['beneficios'] === 4 && $nb->prever(Tokenizador::palavras('seguro vida')) === null);
+
+$salvos = ['descricao' => 'Atender clientes', 'requisitos' => "Ensino médio\nEscala 6x1, folga aos domingos", 'beneficios' => 'VT + VR'];
+confere('CorrecaoHumana: acha onde a pessoa deixou cada linha (e ignora a apagada)', CorrecaoHumana::licoesDeLinhas(['Escala 6x1, folga aos domingos', 'Linha apagada pela pessoa', 'Atender clientes'], $salvos)
+    === [['texto' => 'Escala 6x1, folga aos domingos', 'classe' => 'requisitos'], ['texto' => 'Atender clientes', 'classe' => 'descricao']]);
+confere('CorrecaoHumana: linha curta apagada ("Vendas") não vira lição só porque o campo tem "Experiência em vendas"',
+    CorrecaoHumana::licoesDeLinhas(['Vendas', 'Atendimento'], ['requisitos' => 'Experiência em vendas', 'descricao' => 'Atendimento ao cliente no balcão']) === []);
+confere('CorrecaoHumana: confere acerto por linha e por campo (1900 = "1900.00"; vazio nos dois não conta)',
+    CorrecaoHumana::conferirLinhas(['Escala 6x1, folga aos domingos', 'Atender clientes'], ['descricao' => "Atender clientes\nEscala 6x1, folga aos domingos"], $salvos) === [2, 1]
+    && CorrecaoHumana::conferirCampos(['salario_minimo' => 1900.0, 'titulo' => 'Vendedor', 'contato' => ''], ['salario_minimo' => '1900.00', 'titulo' => 'Vendedora', 'contato' => ''], ['salario_minimo', 'titulo', 'contato'])
+       === [2, 1, ['titulo']]);
+
+// Decisão híbrida dentro da extração de vaga: "Uniforme fornecido" não tem palavra-chave de benefício, então a
+// regra põe na descrição; um modelo que aprendeu o contrário (e está pronto) muda a linha de lugar.
+$pronto = new NaiveBayes();
+for ($i = 0; $i < 8; $i++) {
+    $pronto->aprender(Tokenizador::palavras("Uniforme e crachá fornecidos $i"), 'beneficios');
+    $pronto->aprender(Tokenizador::palavras("Ensino médio completo e experiência $i"), 'requisitos');
+    $pronto->aprender(Tokenizador::palavras("Atender clientes no caixa da loja $i"), 'descricao');
+}
+$anuncio = "ATENDENTE\nUniforme fornecido pela empresa\nVenha trabalhar na Padaria Pão Quente";
+MaquinaAprendizado::ligar(true);
+MaquinaAprendizado::usarModelo('vaga_linha', $pronto);
+MaquinaAprendizado::usarProvas('vaga_linha', 30, 29);   // passou no período de experiência (97%)
+MaquinaAprendizado::usarModelo('vaga_categoria', new NaiveBayes());
+MaquinaAprendizado::usarNomes('vaga_empresa', ['Padaria Pão Quente']);
+$comMaquina = ExtracaoVaga::doTexto($anuncio);
+MaquinaAprendizado::ligar(false);
+$soRegra = ExtracaoVaga::doTexto($anuncio);
+confere('Decisão híbrida: a máquina pronta tira "Uniforme" da descrição e põe em benefícios (e registra por quê)',
+    str_contains($comMaquina['beneficios'], 'Uniforme') && !str_contains($comMaquina['descricao'], 'Uniforme') && str_contains($soRegra['descricao'], 'Uniforme')
+    && in_array('linha', array_column($comMaquina['maquina'], 'campo'), true), json_encode([$comMaquina['beneficios'], $comMaquina['descricao'], $comMaquina['maquina']], JSON_UNESCAPED_UNICODE));
+confere('Memória de nomes: empresa confirmada antes é reconhecida quando nenhuma regra acha', $comMaquina['anunciante'] === 'Padaria Pão Quente' && $soRegra['anunciante'] === '',
+    $comMaquina['anunciante'].' / '.$soRegra['anunciante']);
+MaquinaAprendizado::ligar(true);
+MaquinaAprendizado::usarModelo('vaga_linha', $pronto);
+MaquinaAprendizado::usarProvas('vaga_linha', 30, 20);   // confiante, mas só 67% nas provas
+$reprovado = MaquinaAprendizado::decidir('vaga_linha', 'Uniforme fornecido pela empresa', 'descricao');
+MaquinaAprendizado::usarProvas('vaga_linha', 10, 10);   // acertou tudo, mas ainda fez poucas provas
+$poucasProvas = MaquinaAprendizado::decidir('vaga_linha', 'Uniforme fornecido pela empresa', 'descricao');
+confere('Período de experiência: modelo confiante mas com poucas provas ou menos de 90% de acerto não decide',
+    $reprovado['origem'] === 'regra' && $poucasProvas['origem'] === 'regra' && MaquinaAprendizado::prever('vaga_linha', 'Uniforme fornecido pela empresa')['confiante'] === true);
+MaquinaAprendizado::usarProvas('vaga_linha', 30, 29);
+$poucas = new NaiveBayes();
+$poucas->aprender(Tokenizador::palavras('Uniforme fornecido'), 'beneficios');
+MaquinaAprendizado::ligar(true);
+MaquinaAprendizado::usarModelo('vaga_linha', $poucas);
+confere('Decisão híbrida: com poucas lições quem decide é a regra', MaquinaAprendizado::decidir('vaga_linha', 'Uniforme fornecido pela empresa', 'descricao')['origem'] === 'regra');
+$numerica = new NaiveBayes();
+for ($i = 0; $i < 3; $i++) { $numerica->aprender(Tokenizador::palavras("turma de verão $i"), '2024'); $numerica->aprender(Tokenizador::palavras("turma de inverno $i"), 'Outra'); }
+$pNum = $numerica->prever(Tokenizador::palavras('turma de verão'));
+confere('NaiveBayes: categoria só com números ("2024") não quebra a previsão nem a explicação', ($pNum['classe'] ?? '') === '2024' && is_array($numerica->explicar(Tokenizador::palavras('turma de verão'), '2024')));
+confere('Memória de nomes: nome genérico ("Vaga", "Salário", "Loja") é recusado; nome de verdade entra',
+    MaquinaAprendizado::nomeGenerico('Vaga') && MaquinaAprendizado::nomeGenerico('Salário') && MaquinaAprendizado::nomeGenerico('Loja') && MaquinaAprendizado::nomeGenerico('RH')
+    && !MaquinaAprendizado::nomeGenerico('Padaria Pão Quente') && !MaquinaAprendizado::nomeGenerico('Grupo Dourado'));
+$cvPessoal = new NaiveBayes();
+for ($i = 0; $i < 12; $i++) { $cvPessoal->aprender(Tokenizador::palavras("Atendente de loja no shopping solteira brasileira $i"), 'experiencias'); $cvPessoal->aprender(Tokenizador::palavras("Ensino médio completo escola $i"), 'formacao'); }
+MaquinaAprendizado::usarModelo('curriculo_linha', $cvPessoal);
+MaquinaAprendizado::usarProvas('curriculo_linha', 50, 50);
+$cvCampos = ExtracaoCurriculo::extrairCampos("Maria Souza
+Brasileira, solteira, 25 anos
+Atendente de loja no shopping central
+EXPERIÊNCIA
+Vendedora - Loja X");
+confere('Currículo: dado pessoal do cabeçalho ("Brasileira, solteira, 25 anos") nunca vai para Experiências',
+    !str_contains(Competencias::normalizar($cvCampos['experiencias']), 'solteira'), $cvCampos['experiencias']);
+MaquinaAprendizado::ligar(false);
+MaquinaAprendizado::limparMemoria();
+
 $_SERVER['REQUEST_URI'] = BASE_URL.'vaga.php?id=3';
 confere('Router::caminhoPedido() → "vaga.php"', Router::caminhoPedido() === 'vaga.php', Router::caminhoPedido());
 
@@ -134,6 +222,12 @@ try {
     $tabelas = $db->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN);
     $esperadas = ['assinaturas','candidaturas','categorias','curriculos','cursos','matches','perfis','redefinicoes_senha','tentativas_login','usuarios','vagas'];
     confere('11 tabelas do database/schema.sql', !array_diff($esperadas, $tabelas), implode(', ', array_diff($esperadas, $tabelas)));
+    // A máquina de aprendizado cria as tabelas dela se o banco for de antes delas.
+    $aprendido = (new AprendizadoDAO())->carregar('vaga_linha');
+    (new AprendizadoDAO())->provas();
+    $tabelasMl = ['aprendizado_exemplos', 'aprendizado_palavras', 'aprendizado_revisoes', 'aprendizado_provas'];
+    $faltamMl = array_diff($tabelasMl, $db->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN));
+    confere('tabelas da máquina de aprendizado (criadas sozinhas se faltarem)', !$faltamMl && is_array($aprendido['exemplos']), implode(', ', $faltamMl));
     $contas = $db->query("SELECT email FROM usuarios WHERE email IN ('admin@conectavagas.com','empresa@conectavagas.com','candidato@conectavagas.com')")->fetchAll(PDO::FETCH_COLUMN);
     confere('contas de teste do database/seed.sql', count($contas) === 3, count($contas).' de 3 encontradas');
     confere('vagas abertas listadas pelo VagaDAO', count((new VagaDAO())->listar(true)) > 0);
@@ -174,7 +268,7 @@ if ($status('') === 0) {
               'cursos.php?pagina=99' => 200, 'cursos.php?tipo=xyz' => 200,
               'planos.php' => 200, 'login.php' => 200, 'cadastro.php' => 200, 'esqueci_senha.php' => 200, 'contrato.php' => 200,
               'assets/css/app.css' => 200, 'vaga.php?id=999999' => 404, 'nao-existe.php' => 404,
-              'view/perfil/index.php' => 302, 'admin/index.php' => 302, 'download.php?id=1' => 302] as $caminho => $esperado) {
+              'view/perfil/index.php' => 302, 'admin/index.php' => 302, 'admin/pages/aprendizado.php' => 302, 'download.php?id=1' => 302] as $caminho => $esperado) {
         $s = $status($caminho);
         confere(sprintf('%-24s → %d', $caminho === '' ? '/' : $caminho, $esperado), $s === $esperado, "recebeu $s");
     }

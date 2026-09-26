@@ -6,6 +6,8 @@ declare(strict_types=1);
  * candidaturas recebidas, banco de talentos e dados da empresa.
  */
 final class EmpresaController extends Controller {
+    use AprendeComRevisao;
+
     /**
      * admin/pages/vagas.php — CRUD de vagas + MÁQUINA DE EXTRAÇÃO DE VAGAS:
      *  - "Ler cartaz": envia a imagem do anúncio; o OCR lê o texto e o formulário é preenchido
@@ -13,7 +15,8 @@ final class EmpresaController extends Controller {
      *  - "Colar texto": o mesmo a partir do texto do anúncio (WhatsApp, Instagram, site).
      * Nada é salvo sem revisão. Empresa só mexe nas próprias vagas; o limite do plano básico
      * (2 vagas abertas) vale ao publicar e ao reativar; o mesmo anúncio não é publicado duas vezes.
-     * Ao salvar, o match é recalculado.
+     * Ao salvar, o match é recalculado e, se o formulário veio da extração, a MÁQUINA DE APRENDIZADO
+     * compara a sugestão com o que foi salvo e aprende com a correção (trait AprendeComRevisao).
      */
     public function vagas(): void {
         exigirLogin();
@@ -108,6 +111,8 @@ final class EmpresaController extends Controller {
                 $parecida = $extraido['titulo'] !== '' ? $dao->buscarParecida($extraido['titulo'], $extraido['anunciante'], $extraido['cidade'], $id) : null;
                 $form = $extraido + ['id' => $id, 'categoria_id' => $cat['id'] ?? null, 'perfil_empresa_id' => $existente['perfil_empresa_id'] ?? post_int('perfil_empresa_id'),
                                      'imagem' => $imagemForm, 'status' => $existente['status'] ?? 'ativa', 'destaque' => $existente['destaque'] ?? 0, 'data_expiracao' => $existente['data_expiracao'] ?? null];
+                // A sugestão fica guardada até o "Salvar": aí a máquina vê o que a pessoa corrigiu e aprende.
+                $form['sugestao_maquina'] = $this->guardarSugestao('vaga', fn() => MaquinaAprendizado::sugestao('vaga', $extraido, $extraido['linhas'] ?? [], $textoAnuncio));
             } else {
                 $pid = isAdmin() ? post_int('perfil_empresa_id') : (int)($perfil['id'] ?? 0);
                 $d = [
@@ -166,7 +171,7 @@ final class EmpresaController extends Controller {
                     // escolhida antes (o cartaz lido continua no formulário e não é descartado).
                     if ($img) { apagar_upload_sem_uso($img); $d['imagem'] = $imagemEscolhida; $erros[] = 'Selecione a imagem de novo ao corrigir.'; }
                     flash('erro', implode(' ', $erros));
-                    $form = $d + ['id' => $id];
+                    $form = $d + ['id' => $id, 'sugestao_maquina' => post_str('sugestao_maquina')]; // a revisão continua valendo para o aprendizado
                 } else {
                     // Contagem do limite e gravação na mesma transação (evita passar do limite com envios simultâneos).
                     $res = $dao->salvarComLimite($d, $id, $limite);
@@ -182,7 +187,11 @@ final class EmpresaController extends Controller {
                         $this->descartarCartazesLidos(); // o cartaz usado agora pertence à vaga; outros lidos e não usados saem
                         $n = 0;
                         try { $n = (new MatchService())->recalcularVaga((int)$novoId); } catch (Throwable) {}
-                        flash('ok', ($id ? 'Vaga atualizada.' : 'Vaga publicada!').($d['status'] === 'ativa' ? " Match calculado com {$n} candidato(s)." : ''));
+                        // Aprendizado: a vaga salva é a resposta certa para a sugestão da extração.
+                        $categoriaNome = array_column($cats, 'nome', 'id')[(int)$d['categoria_id']] ?? '';
+                        $aprendeu = $this->aprenderComRevisao('vaga', $d + ['categoria' => $categoriaNome], post_str('sugestao_maquina'));
+                        flash('ok', ($id ? 'Vaga atualizada.' : 'Vaga publicada!').($d['status'] === 'ativa' ? " Match calculado com {$n} candidato(s)." : '')
+                            .(!empty($aprendeu['licoes']) ? ' A máquina de extração aprendeu '.$aprendeu['licoes'].' '.($aprendeu['licoes'] === 1 ? 'lição' : 'lições').' com a sua revisão.' : ''));
                     } else {
                         flash('erro', 'Não foi possível salvar a vaga.');
                     }

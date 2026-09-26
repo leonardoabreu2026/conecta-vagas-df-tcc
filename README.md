@@ -12,7 +12,7 @@ Trabalho de Conclusão de Curso (TCC).
 | Visitante | Vagas e cursos/e-books com busca e filtros; página de cada vaga e curso; planos. |
 | Candidato | Envia o currículo (PDF/DOCX/DOC) e a **máquina de extração** preenche o perfil; com o cadastro completo, ganha um **portfólio** automático e a **máquina de match** (nota de 0 a 100, explicada, com cada vaga); candidata-se e acompanha o retorno das empresas. |
 | Empresa | Publica vagas (cola o anúncio e a **extração de vagas** preenche o formulário), recebe candidaturas ordenadas pelo match e consulta o banco de talentos. |
-| Administrador | Gerencia usuários, categorias, cursos/e-books (com **extração de cursos**), vagas e candidaturas. |
+| Administrador | Gerencia usuários, categorias, cursos/e-books (com **extração de cursos**), vagas e candidaturas, e acompanha a **máquina de aprendizado**. |
 
 Planos demonstrativos (sem cobrança real): **Candidato VIP** e **Empresa Premium**.
 
@@ -56,13 +56,15 @@ TCC_GUSTAVO/
 │   ├── DTO/               objetos que levam os dados do formulário até o banco
 │   ├── Models/            acesso ao banco, uma classe por tabela (M do MVC)
 │   ├── Services/          regras de negócio: match, competências, portfólio e extração
-│   │   └── Extracao/      leitura de PDF/DOCX/DOC e extração de currículo, vaga e curso
+│   │   ├── Extracao/      leitura de PDF/DOCX/DOC e extração de currículo, vaga e curso
+│   │   └── Aprendizado/   aprendizado de máquina das extrações (Naive Bayes que aprende com as revisões)
 │   └── Views/             telas em HTML + PHP (V do MVC): layouts, partes reutilizáveis e páginas
 ├── config/config.php      configurações (banco, depuração, limites, pastas)
 ├── database/
 │   ├── schema.sql         estrutura do banco (tabelas, chaves, índices)
 │   └── seed.sql           dados de demonstração (contas, vagas, cursos)
 ├── docs/ARQUITETURA.md    como o sistema funciona por dentro (leia para a apresentação)
+├── docs/APRENDIZADO.md    a máquina de aprendizado: ideia, algoritmo, arquivos e roteiro de demonstração
 ├── public/                ÚNICA pasta servida pelo Apache
 │   ├── index.php          front controller: porta de entrada de todas as páginas + tabela de rotas
 │   └── assets/            CSS, JavaScript e imagens (carrossel, cartazes das vagas, capas dos cursos)

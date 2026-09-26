@@ -11,6 +11,10 @@ declare(strict_types=1);
  *  2. nome (rótulo "Nome:", maior fonte do arquivo ou primeira linha com cara de nome) e o título logo abaixo;
  *  3. divisão em seções pelos títulos (com ou sem acento, maiúsculas, numeração, ícones, "E X P E R I Ê N C I A");
  *  4. cada campo é montado a partir da sua seção; experiências e formação saem em formato padronizado.
+ *
+ * APRENDIZADO: currículo simples muitas vezes não tem título de seção nenhum, e as linhas ficam
+ * "soltas" no cabeçalho. Para essas linhas a MaquinaAprendizado pode dizer a seção, com o que
+ * aprendeu dos perfis que os candidatos revisaram e salvaram depois de enviar o currículo.
  */
 final class ExtracaoCurriculo {
     /** Seções reconhecidas e os títulos que as identificam (normalizados). */
@@ -55,6 +59,10 @@ final class ExtracaoCurriculo {
         'linkedin' => 'link', 'github' => 'link', 'gitlab' => 'link', 'portfolio' => 'link', 'site' => 'link', 'behance' => 'link', 'lattes' => 'link', 'instagram' => 'link',
         'estado civil' => 'sensivel', 'cpf' => 'sensivel', 'rg' => 'sensivel', 'nacionalidade' => 'sensivel', 'naturalidade' => 'sensivel', 'filhos' => 'sensivel', 'sexo' => 'sensivel', 'genero' => 'sensivel', 'religiao' => 'sensivel',
     ];
+
+    /** Palavras de dado pessoal no cabeçalho (texto normalizado): a máquina de aprendizado não mexe nessas linhas. */
+    private const DADOS_PESSOAIS = '/\b(\d{1,2} anos|solteir[oa]|casad[oa]|divorciad[oa]|viuv[oa]|uniao estavel|brasileir[oa]|nacionalidade|naturalidade|'
+        .'estado civil|filhos?|rua|avenida|av|quadra|qd|qnm|qnn|qr|conjunto|conj|casa|lote|lt|cep|bairro|setor|residencial|condominio|apto|apartamento|bloco|chacara)\b/';
 
     /** Lê o arquivo (PDF/DOCX/DOC) e devolve o texto. */
     public static function extrair(string $path): string {
@@ -101,6 +109,7 @@ final class ExtracaoCurriculo {
 
         // ---- 3) seções
         [$cabecalho, $secoes] = self::separarSecoes($resto);
+        [$cabecalho, $secoes] = self::secoesAprendidas($cabecalho, $secoes);
         foreach ($secoes['contato'] ?? [] as $l) $cabecalho[] = $l;
 
         // ---- 4) contato, local, datas
@@ -152,6 +161,37 @@ final class ExtracaoCurriculo {
         $comport = array_values(array_diff(array_intersect($todas, Competencias::COMPORTAMENTAIS), Competencias::extrair(implode("\n", $itensComp))));
         $r['competencias'] = self::juntarLista($itensComp, count($itensComp) < 3 ? $comport : []);
         return $r;
+    }
+
+    /**
+     * Linhas do currículo como a extração enxerga (texto limpo, uma por linha). A máquina de aprendizado
+     * guarda essas linhas para comparar com o perfil que o candidato salvar depois.
+     * @return list<string>
+     */
+    public static function linhasDoTexto(string $texto): array {
+        return array_map([self::class, 'semMarcador'], self::linhas(LeitorDocumento::limpar($texto)));
+    }
+
+    /**
+     * Linhas do cabeçalho (antes do primeiro título de seção) que a máquina de aprendizado reconhece
+     * com confiança como experiência, formação, curso etc. vão para essa seção. Contato, datas e linhas
+     * curtas (nome, cargo) ficam onde estão; "resumo" também fica, porque o cabeçalho já vira o resumo.
+     * @return array{0:string[],1:array<string,string[]>}
+     */
+    private static function secoesAprendidas(array $cabecalho, array $secoes): array {
+        $fica = [];
+        foreach ($cabecalho as $l) {
+            $limpa = self::semMarcador($l);
+            if (self::ehContato($limpa) || str_word_count(Competencias::normalizar($limpa)) < 3 || preg_match('/\d{2}\/\d{2}\/\d{4}/', $limpa)) { $fica[] = $l; continue; }
+            // Dados pessoais (idade, estado civil, nacionalidade, endereço) nunca vão para uma seção do
+            // portfólio: ficam no cabeçalho, onde a extração já sabe tratá-los (ou descartá-los).
+            if (preg_match(self::DADOS_PESSOAIS, Competencias::normalizar($limpa))) { $fica[] = $l; continue; }
+            // No cabeçalho não há regra de seção: com palpite vazio, a máquina decide sempre que estiver pronta.
+            $d = MaquinaAprendizado::decidir('curriculo_linha', $limpa, '');
+            if ($d['origem'] === 'maquina' && $d['classe'] !== 'resumo') $secoes[$d['classe']][] = $l;
+            else $fica[] = $l;
+        }
+        return [$fica, $secoes];
     }
 
     // ------------------------------------------------------------------ linhas

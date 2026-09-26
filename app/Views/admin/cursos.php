@@ -65,12 +65,14 @@ $filtrosLista = ['tipo' => $filtroTipo, 'q' => $busca];
         </form>
         <?php if ($extraido): ?>
             <div class="alert info" style="margin:10px 0 0">Dados extraídos — revise abaixo antes de salvar.<?php if ($extraido['competencias']): ?> Competências que o curso desenvolve: <b><?=e(implode(', ', $extraido['competencias']))?></b>.<?php endif; ?></div>
+            <?=painel_decisoes_maquina($extraido['maquina'] ?? [])?>
         <?php endif; ?>
     </details>
 
     <h2 class="pn-form-titulo" id="form-curso"><?=!empty($form['id']) ? 'Editar conteúdo #'.(int)$form['id'] : 'Novo conteúdo'?></h2>
     <form method="post" enctype="multipart/form-data">
         <input type="hidden" name="csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="acao" value="salvar"><input type="hidden" name="id" value="<?=(int)($form['id'] ?? 0)?>">
+        <?php if (!empty($form['sugestao_maquina'])): ?><input type="hidden" name="sugestao_maquina" value="<?=e((string)$form['sugestao_maquina'])?>"><?php endif; ?>
         <div class="form-grid">
             <div><label for="c-titulo">Título</label><input id="c-titulo" name="titulo" required maxlength="255" value="<?=e($form['titulo'])?>"></div>
             <div><label for="c-inst">Instituição</label><input id="c-inst" name="instituicao" maxlength="255" value="<?=e($form['instituicao'])?>"></div>

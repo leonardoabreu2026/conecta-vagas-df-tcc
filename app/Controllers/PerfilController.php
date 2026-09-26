@@ -9,6 +9,8 @@ declare(strict_types=1);
  * a aba "Portfólio" é liberada no topo → lá ficam o portfólio montado e o match com as vagas.
  */
 final class PerfilController extends Controller {
+    use AprendeComRevisao;
+
     /** view/perfil/index.php — "Meu perfil": máquina de extração do currículo + formulário do cadastro. */
     public function index(): void {
         exigirLogin();
@@ -68,6 +70,9 @@ final class PerfilController extends Controller {
             redirect('view/perfil/index.php');
         }
         if ($fotoNova && !empty($p['foto'])) apagar_upload_sem_uso((string)$p['foto']);
+        // Perfil revisado depois de enviar o currículo: a máquina de aprendizado vê onde o candidato
+        // deixou cada linha do currículo e aprende (só uma vez por currículo enviado).
+        $this->aprenderComRevisao('curriculo', $dados);
 
         // Telefone pertence à conta (tabela usuarios).
         $tel = mb_substr(post_str('telefone'), 0, 30);

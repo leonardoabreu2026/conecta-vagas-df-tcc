@@ -57,6 +57,7 @@ $cartazNoForm = !empty($form['imagem']) && str_starts_with((string)$form['imagem
         <?php if ($extraido['avisos'] ?? []): ?>
             <ul class="ex-avisos"><?php foreach ($extraido['avisos'] as $a): ?><li><?=e($a)?></li><?php endforeach; ?></ul>
         <?php endif; ?>
+        <?=painel_decisoes_maquina($extraido['maquina'] ?? [], MaquinaAprendizado::MODELOS['vaga_linha'][2])?>
         <details class="pf-rel-detalhes" open>
             <summary>Ver campo por campo</summary>
             <div class="pf-rel-tabela" role="table" aria-label="Campos extraídos">
@@ -78,6 +79,7 @@ $cartazNoForm = !empty($form['imagem']) && str_starts_with((string)$form['imagem
     <h2 class="pn-form-titulo" id="form-vaga"><?=!empty($form['id']) ? 'Editar vaga #'.(int)$form['id'] : 'Cadastrar vaga'?></h2>
     <form method="post" enctype="multipart/form-data">
         <input type="hidden" name="csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="acao" value="salvar"><input type="hidden" name="id" value="<?=(int)($form['id'] ?? 0)?>">
+        <?php if (!empty($form['sugestao_maquina'])): ?><input type="hidden" name="sugestao_maquina" value="<?=e((string)$form['sugestao_maquina'])?>"><?php endif; ?>
         <div class="form-grid">
             <?php if (isAdmin()): ?>
                 <div class="full"><label for="v-empresa">Empresa (quem publica)</label><select id="v-empresa" name="perfil_empresa_id" required><option value="">Selecione</option><?php foreach ($empresas as $ep): ?><option value="<?=(int)$ep['id']?>" <?=(int)($form['perfil_empresa_id'] ?? 0) === (int)$ep['id'] ? 'selected' : ''?>><?=e($ep['nome_fantasia'] ?: $ep['nome'])?></option><?php endforeach; ?></select></div>

@@ -11,8 +11,10 @@
 --
 -- Tabelas: usuarios (contas) → perfis (1:1, candidato ou empresa) → curriculos, vagas;
 -- categorias; cursos; candidaturas (candidato × vaga); matches (nota candidato × vaga);
--- assinaturas (planos); tentativas_login e redefinicoes_senha (segurança da conta).
--- As chaves estrangeiras usam ON DELETE CASCADE: excluir um usuário remove tudo dele.
+-- assinaturas (planos); tentativas_login e redefinicoes_senha (segurança da conta);
+-- aprendizado_exemplos, aprendizado_palavras, aprendizado_revisoes e aprendizado_provas (máquina de aprendizado).
+-- As chaves estrangeiras usam ON DELETE CASCADE: excluir um usuário remove tudo dele (exceto nas tabelas do
+-- aprendizado: a lição fica e só perde o autor, ON DELETE SET NULL).
 -- ============================================================
 SET NAMES utf8mb4;
 
@@ -216,4 +218,66 @@ CREATE TABLE redefinicoes_senha (
  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
  FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
  INDEX idx_redef_usuario(usuario_id,created_at)
+) ENGINE=InnoDB;
+
+-- ============================================================
+-- MÁQUINA DE APRENDIZADO (app/Services/Aprendizado)
+-- ============================================================
+-- A extração de vagas, cursos e currículos aprende com as revisões: o que a pessoa corrige e salva
+-- vira uma "lição". Se estas tabelas não existirem (banco criado antes delas), o AprendizadoDAO
+-- cria as quatro sozinho na primeira vez que precisar.
+
+-- Cada lição: um texto e a resposta certa (coluna classe) confirmada por uma pessoa (ex.: "VT + VR" → beneficios).
+-- modelo = qual máquina aprendeu (vaga_linha, vaga_categoria, curso_categoria, curriculo_linha,
+-- vaga_empresa, curso_instituicao). chave = SHA-1 do texto normalizado: a mesma frase não entra duas vezes
+-- no mesmo modelo (vezes conta quantas revisões a confirmaram).
+CREATE TABLE aprendizado_exemplos (
+ id INT AUTO_INCREMENT PRIMARY KEY,
+ modelo VARCHAR(40) NOT NULL,
+ classe VARCHAR(100) NOT NULL,
+ texto VARCHAR(500) NOT NULL,
+ chave CHAR(40) NOT NULL,
+ vezes INT NOT NULL DEFAULT 1,
+ usuario_id INT NULL,
+ created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ UNIQUE KEY uniq_aprendizado_chave(modelo, chave),
+ INDEX idx_aprendizado_classe(modelo, classe),
+ FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- Contadores do classificador Naive Bayes: quantas vezes cada palavra apareceu em cada resposta (classe).
+-- É o "modelo" em si; cada lição soma +1 nas palavras dela (aprendizado incremental).
+CREATE TABLE aprendizado_palavras (
+ modelo VARCHAR(40) NOT NULL,
+ classe VARCHAR(100) NOT NULL,
+ palavra VARCHAR(100) NOT NULL,
+ contagem INT NOT NULL DEFAULT 0,
+ PRIMARY KEY(modelo, classe, palavra)
+) ENGINE=InnoDB;
+
+-- Uma linha por revisão salva: quantos campos e linhas a extração acertou (gráficos de acerto do painel).
+-- origem = 'vaga', 'curso' ou 'curriculo'.
+CREATE TABLE aprendizado_revisoes (
+ id INT AUTO_INCREMENT PRIMARY KEY,
+ origem VARCHAR(20) NOT NULL,
+ campos INT NOT NULL DEFAULT 0,
+ campos_certos INT NOT NULL DEFAULT 0,
+ linhas INT NOT NULL DEFAULT 0,
+ linhas_certas INT NOT NULL DEFAULT 0,
+ licoes INT NOT NULL DEFAULT 0,
+ usuario_id INT NULL,
+ created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ INDEX idx_revisao_origem(origem, created_at),
+ FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- Período de experiência de cada modelo: antes de aprender cada lição nova, o modelo tenta adivinhar a
+-- resposta (uma "prova"). Ele só passa a decidir no lugar da regra depois de acertar a maioria das provas
+-- (MaquinaAprendizado::MIN_PROVAS e PRECISAO_MINIMA).
+CREATE TABLE aprendizado_provas (
+ modelo VARCHAR(40) NOT NULL PRIMARY KEY,
+ provas INT NOT NULL DEFAULT 0,
+ acertos INT NOT NULL DEFAULT 0,
+ updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;

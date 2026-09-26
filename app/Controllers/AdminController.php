@@ -7,6 +7,8 @@ declare(strict_types=1);
  * As telas do painel que a empresa usa (vagas, candidaturas...) ficam em EmpresaController.
  */
 final class AdminController extends Controller {
+    use AprendeComRevisao;
+
     /**
      * admin/index.php — dashboard (estilo Power BI): indicadores + gráficos + listas recentes.
      * Administrador: o sistema todo; empresa: só as vagas e candidaturas dela.
@@ -80,6 +82,8 @@ final class AdminController extends Controller {
                 if ($id === $meuId) { flash('erro', 'Você não pode excluir a própria conta.'); redirect('admin/pages/usuarios.php'); }
                 $alvo = $dao->buscarPorId($id);
                 if ($alvo && $alvo['tipo'] === 'admin' && (int)$alvo['ativo'] && $dao->contarAdminsAtivos() <= 1) { flash('erro', 'É preciso manter pelo menos um administrador ativo.'); redirect('admin/pages/usuarios.php'); }
+                // LGPD: as lições de currículo que vieram deste candidato saem da máquina de aprendizado antes da conta.
+                if ($alvo) MaquinaAprendizado::esquecerDoUsuario($id);
                 $ok = $dao->excluir($id);
                 flash($ok ? 'ok' : 'erro', $ok ? 'Usuário excluído (perfil, currículos, vagas e candidaturas foram removidos junto).' : 'Não foi possível excluir o usuário.');
                 redirect('admin/pages/usuarios.php');
@@ -159,6 +163,7 @@ final class AdminController extends Controller {
     /**
      * admin/pages/cursos.php — CRUD de cursos/e-books + EXTRAÇÃO DE CURSOS:
      * o administrador cola o texto de divulgação e o formulário é preenchido (nada é salvo sem revisão).
+     * Ao salvar um formulário que veio da extração, a máquina de aprendizado aprende com a revisão.
      */
     public function cursos(): void {
         exigirAdmin();
@@ -244,6 +249,7 @@ final class AdminController extends Controller {
                 $extraido = ExtracaoCurso::doTexto(post_str('texto_anuncio'));
                 $cat = $extraido['categoria'] ? $catDao->buscarPorNome($extraido['categoria'], 'curso') : null;
                 $form = $extraido + ['id' => $id, 'categoria_id' => $cat['id'] ?? null, 'imagem' => ExtracaoCurso::capa($extraido['instituicao'], $extraido['url'], $extraido['tipo']), 'ativo' => 1];
+                $form['sugestao_maquina'] = $this->guardarSugestao('curso', fn() => MaquinaAprendizado::sugestao('curso', $extraido, [], post_str('texto_anuncio')));
             } else {
                 $d = [
                     'categoria_id' => post_int('categoria_id') ?: null,
@@ -278,11 +284,13 @@ final class AdminController extends Controller {
                 if ($erros) {
                     if ($img) { apagar_upload_sem_uso($img); $d['imagem'] = $existente['imagem'] ?? ''; } // não deixa arquivo órfão
                     flash('erro', implode(' ', $erros));
-                    $form = $d + ['id' => $id];
+                    $form = $d + ['id' => $id, 'sugestao_maquina' => post_str('sugestao_maquina')];
                 } else {
                     $ok = $dao->salvar($d, $id);
                     if ($ok && $existente && ($existente['imagem'] ?? '') !== $d['imagem']) apagar_upload_sem_uso((string)$existente['imagem']);
-                    flash($ok ? 'ok' : 'erro', $ok ? 'Conteúdo salvo.' : 'Não foi possível salvar.');
+                    // Aprendizado: o curso salvo é a resposta certa para a sugestão da extração.
+                    $aprendeu = $ok ? $this->aprenderComRevisao('curso', $d + ['categoria' => array_column($cats, 'nome', 'id')[(int)$d['categoria_id']] ?? ''], post_str('sugestao_maquina')) : null;
+                    flash($ok ? 'ok' : 'erro', $ok ? 'Conteúdo salvo.'.(!empty($aprendeu['licoes']) ? ' A máquina de extração aprendeu '.$aprendeu['licoes'].' '.($aprendeu['licoes'] === 1 ? 'lição' : 'lições').' com a sua revisão.' : '') : 'Não foi possível salvar.');
                     redirect('admin/pages/cursos.php');
                 }
             }

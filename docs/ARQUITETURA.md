@@ -71,6 +71,8 @@ View: layouts/header.php + vagas/lista.php + layouts/footer.php  ──► HTML
 | `CurriculoController` | envio do currículo (extração), aplicar dados do relatório, excluir currículo |
 | `ArquivoController` | imagens enviadas (`assets/uploads/...`), download do currículo (`download.php`) |
 | `AdminController` | painel (`admin/index.php`), usuários, categorias, cursos |
+| `AprendizadoController` | painel "Aprendizado da máquina" (`admin/pages/aprendizado.php`) |
+| `AprendeComRevisao` (*trait*) | usada pelos controllers com extração: guarda a sugestão da máquina e aprende quando o formulário é salvo |
 | `EmpresaController` | vagas (com extração), candidaturas recebidas, banco de talentos, perfil da empresa |
 
 ### app/Models — acesso ao banco (DAO)
@@ -86,6 +88,7 @@ View: layouts/header.php + vagas/lista.php + layouts/footer.php  ──► HTML
 | `CandidaturaDAO` | `candidaturas` |
 | `MatchDAO` | `matches` |
 | `AssinaturaDAO` | `assinaturas` + regras dos planos |
+| `AprendizadoDAO` | `aprendizado_exemplos`, `aprendizado_palavras`, `aprendizado_revisoes`, `aprendizado_provas` (máquina de aprendizado) |
 
 ### app/Services — regras de negócio
 
@@ -99,6 +102,10 @@ View: layouts/header.php + vagas/lista.php + layouts/footer.php  ──► HTML
 | `Extracao/AplicacaoCurriculo` | Aplica os dados extraídos no perfil (preenche, mantém ou mescla). |
 | `Extracao/ExtracaoVaga` | Texto de um anúncio → campos da vaga. |
 | `Extracao/ExtracaoCurso` | Texto de divulgação → campos do curso. |
+| `Aprendizado/MaquinaAprendizado` | Aprendizado de máquina das extrações: decisão híbrida regra × modelo, aprender com a revisão. Ver [APRENDIZADO.md](APRENDIZADO.md). |
+| `Aprendizado/NaiveBayes` | O classificador (aprender, esquecer, prever e explicar). |
+| `Aprendizado/Tokenizador` | Texto → palavras que o classificador conta. |
+| `Aprendizado/CorrecaoHumana` | Compara a sugestão da extração com o que a pessoa salvou e tira as lições. |
 | `Pix` | Código Pix "copia e cola" (BR Code do Banco Central, com CRC16) do QR Code de doação do rodapé. |
 
 ### app/Views — telas
@@ -146,6 +153,7 @@ Definida em `public/index.php`. As rotas aceitam GET (mostrar) e POST (enviar fo
 | `admin/pages/usuarios.php` | `AdminController::usuarios` | `admin/usuarios` | admin |
 | `admin/pages/categorias.php` | `AdminController::categorias` | `admin/categorias` | admin |
 | `admin/pages/cursos.php` | `AdminController::cursos` | `admin/cursos` | admin |
+| `admin/pages/aprendizado.php` | `AprendizadoController::painel` | `admin/aprendizado` | admin |
 | `admin/pages/vagas.php` | `EmpresaController::vagas` | `admin/vagas` | empresa (suas vagas) e admin |
 | `admin/pages/candidaturas.php` | `EmpresaController::candidaturas` | `admin/candidaturas` | empresa e admin |
 | `admin/pages/talentos.php` | `EmpresaController::talentos` | `admin/talentos` | empresa e admin |
@@ -169,6 +177,9 @@ Definida em `public/index.php`. As rotas aceitam GET (mostrar) e POST (enviar fo
 
 A empresa faz um caminho parecido para vagas: cola o anúncio → `ExtracaoVaga` preenche → publica →
 o match é recalculado com todos os candidatos.
+
+Em todas as extrações (vaga, curso e currículo), a revisão salva ensina a **máquina de aprendizado**: as correções
+feitas na revisão viram lições que a extração passa a usar. Detalhes e roteiro de demonstração: [APRENDIZADO.md](APRENDIZADO.md).
 
 ---
 
@@ -216,6 +227,13 @@ carga horária, gratuito/preço, modalidade, nível, formato e categoria.
 do conteúdo, "Outros" do mesmo formato (`pt_secao_formato()` em `partials/componentes.php`).
 
 Nada é gravado sem revisão: a extração de vagas e cursos só preenche o formulário (ou a prévia da importação).
+
+**Aprendizado de máquina**: as regras acima são a base. Linhas soltas do anúncio, área da vaga/curso, empresa ou
+instituição não reconhecida e linhas do currículo sem título de seção também passam pela `MaquinaAprendizado`
+(Naive Bayes e memória de nomes), que aprende com cada revisão salva e só decide quando tem lições e confiança
+suficientes e já passou no "período de experiência" (acertou 90% das provas feitas com lições que ainda não
+conhecia); senão vale a regra. Nas vagas e nos cursos, o relatório da extração mostra o que a máquina decidiu e
+por quê. Detalhes em [APRENDIZADO.md](APRENDIZADO.md).
 
 ### CRUD do painel
 
@@ -333,6 +351,7 @@ usuarios 1──1 perfis 1──N curriculos
                   │                     └──N matches      N── perfis (candidato)
 usuarios 1──N assinaturas · tentativas_login · redefinicoes_senha
 categorias 1──N vagas / cursos
+usuarios 1──N aprendizado_exemplos · aprendizado_revisoes   (quem ensinou; aprendizado_palavras são os contadores)
 ```
 
 Categorias de vaga do seed: TI, Administração, Marketing, Vendas, RH, Financeiro, Engenharia, Saúde, Educação,

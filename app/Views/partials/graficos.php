@@ -268,3 +268,31 @@ function painel_cabecalho(string $titulo, string $descricao = '', string $acoes 
          .'<h1>'.e($titulo).'</h1>'.($descricao !== '' ? '<p class="pn-desc">'.e($descricao).'</p>' : '').'</div>'
          .($acoes !== '' ? '<div class="pn-cab-acoes">'.$acoes.'</div>' : '').'</header>';
 }
+
+/**
+ * Decisões da MÁQUINA DE APRENDIZADO numa extração (vaga ou curso): o que ela decidiu com o que
+ * aprendeu das revisões anteriores, com a confiança e as palavras que mais pesaram.
+ * Fica dentro do relatório da extração, para a pessoa saber o que foi regra e o que foi aprendido.
+ *
+ * @param list<array{campo:string,texto:string,regra:string,para:string,confianca:?float,motivos?:list<string>}> $decisoes $r['maquina']
+ * @param array<string,string> $rotulos classe => rótulo ("beneficios" => "Benefícios")
+ */
+function painel_decisoes_maquina(array $decisoes, array $rotulos = []): string {
+    if (!$decisoes) return '';
+    $campos = ['linha' => 'Linha', 'categoria' => 'Área', 'anunciante' => 'Empresa', 'instituicao' => 'Instituição'];
+    $rot = fn(string $c) => $rotulos[$c] ?? $c;
+    $h = '<div class="ml-decisoes"><p class="ml-decisoes-tit">'.icone('lampada', 16).'<span><b>Aprendizado de máquina:</b> '
+       .count($decisoes).' '.(count($decisoes) === 1 ? 'decisão tomada' : 'decisões tomadas').' com o que foi aprendido nas revisões anteriores. Confira essas decisões como os demais campos.</span></p><ul>';
+    foreach ($decisoes as $d) {
+        $h .= '<li><span class="ml-campo">'.e($campos[$d['campo']] ?? $d['campo']).'</span> ';
+        if ($d['campo'] === 'linha') $h .= '“'.e(mb_strimwidth($d['texto'], 0, 90, '…')).'” → ';
+        $h .= '<b>'.e($rot($d['para'])).'</b>';
+        $det = [];
+        if ($d['confianca'] !== null) $det[] = gf_num(100 * $d['confianca']).'% de confiança';
+        if (in_array($d['campo'], ['linha', 'categoria'], true)) $det[] = $d['regra'] !== '' ? 'a regra dizia '.$rot($d['regra']) : 'a regra não tinha sugestão';
+        else $det[] = 'nome confirmado antes por quem revisou';
+        if (!empty($d['motivos'])) $det[] = 'pesou: '.implode(', ', array_slice($d['motivos'], 0, 3));
+        $h .= ' <span class="ml-det">('.e(implode(' · ', $det)).')</span></li>';
+    }
+    return $h.'</ul></div>';
+}

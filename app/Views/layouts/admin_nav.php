@@ -10,6 +10,7 @@ if (isAdmin()) {
     $abas['usuarios'] = ['admin/pages/usuarios.php', 'Usuários', 'grupo'];
     $abas['categorias'] = ['admin/pages/categorias.php', 'Categorias', 'jornal'];
     $abas['cursos'] = ['admin/pages/cursos.php', 'Cursos e e-books', 'cursos'];
+    $abas['aprendizado'] = ['admin/pages/aprendizado.php', 'Aprendizado da máquina', 'lampada'];
 }
 $abas['vagas'] = ['admin/pages/vagas.php', 'Vagas', 'maleta'];
 $abas['candidaturas'] = ['admin/pages/candidaturas.php', 'Candidaturas', 'formulario'];
