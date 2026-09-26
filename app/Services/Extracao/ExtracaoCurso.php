@@ -215,6 +215,7 @@ final class ExtracaoCurso {
         if (($c['titulo'] ?? '') !== '') $r['titulo'] = mb_substr(trim($c['titulo'], ' "\''), 0, 255);
         if (($c['instituicao'] ?? '') !== '') $r['instituicao'] = mb_substr($c['instituicao'], 0, 255);
         if (($link = self::primeiroLink($c['url'] ?? '')) !== '') $r['url'] = $link;
+        $r['instituicao'] = FontesCursos::nomeOficial($r['instituicao'], $r['url']);   // nome padronizado pela fonte oficial do link
         if ($n('tipo') !== '') $r['tipo'] = preg_match('/e ?book|livro|apostila|guia|pdf/', $n('tipo')) ? 'ebook' : (preg_match('/video|webinar|aula gravada/', $n('tipo')) ? 'video' : 'curso');
         if ($n('modalidade') !== '') $r['modalidade'] = preg_match('/hibrid|semipresencial/', $n('modalidade')) ? 'hibrido' : (preg_match('/^presencial/', $n('modalidade')) ? 'presencial' : 'ead');
         if ($n('nivel') !== '') $r['nivel'] = preg_match('/avanc/', $n('nivel')) ? 'avancado' : (preg_match('/intermed/', $n('nivel')) ? 'intermediario' : 'iniciante');
@@ -241,39 +242,11 @@ final class ExtracaoCurso {
     }
 
     /**
-     * Prompt para a IA de pesquisa (Perplexity, ChatGPT…): pede cursos/e-books reais, gratuitos ou baratos,
-     * no formato de ficha que fichas() lê. Usa as categorias de curso cadastradas no sistema.
+     * Prompt para a IA de pesquisa (Perplexity, ChatGPT…) no formato de ficha que fichas() lê.
+     * Atalho para o prompt da pesquisa guiada (FontesCursos::prompt), sem direcionamento de formato/área/fonte.
      */
     public static function promptPesquisa(array $categorias, int $quantidade = 20): string {
-        $areas = $categorias ? implode(' | ', $categorias) : implode(' | ', self::AREAS);
-        return <<<TXT
-Você é um pesquisador de oportunidades de capacitação profissional para uma plataforma de empregos do Distrito Federal (Brasil) chamada Conecta Vagas DF. O público são pessoas que procuram emprego, muitas no primeiro emprego.
-
-TAREFA: pesquise na internet e liste {$quantidade} cursos e e-books REAIS, GRATUITOS (ou de baixo custo) e em português, que ajudem a conseguir emprego. Distribua entre estas áreas: {$areas}. Inclua pelo menos 5 e-books (guias ou livros digitais gratuitos para baixar) e, se houver, cursos presenciais gratuitos no Distrito Federal (SENAI, SENAC, SESI, IFB, Agência do Trabalhador, GDF).
-
-REGRAS:
-1. Só use fontes oficiais (site da instituição) e confira que o link abre a página do curso ou do e-book — não invente links.
-2. Prefira instituições conhecidas: Fundação Bradesco (Escola Virtual), Escola Virtual.Gov (ENAP), SEBRAE, SENAI, SENAC, SESI, IFB, Google (Grow), Microsoft Learn, FGV, Fundação Estudar, Cisco.
-3. Não repita cursos. Descrição curta e objetiva, sem propaganda.
-4. IMAGEM (obrigatória — sem ela o item não é cadastrado): informe o endereço DIRETO de uma imagem oficial que identifique o item, terminando em .jpg, .jpeg, .png ou .webp. No e-book, a imagem da CAPA (miniatura da capa na página de download); no curso, a imagem de divulgação da página do próprio curso. Nunca use logotipo genérico, ícone ou imagem de outro site. Se não encontrar, escreva: Não encontrada.
-5. Responda SOMENTE com as fichas abaixo, sem introdução, sem conclusão, sem tabela e sem negrito. Separe cada ficha com uma linha contendo apenas ---
-
-FORMATO DE CADA FICHA (copie os rótulos exatamente assim):
-Título: nome oficial do curso ou e-book
-Tipo: Curso | E-book | Vídeo
-Instituição: quem oferece
-Modalidade: EAD | Presencial | Híbrido
-Cidade: cidade/UF (só se for presencial ou híbrido; se for EAD escreva Online)
-Nível: Iniciante | Intermediário | Avançado
-Carga horária: ex.: 20 horas (ou Não informado)
-Gratuito: Sim | Não
-Preço: ex.: R\$ 49,90 (só se não for gratuito)
-Área: uma destas: {$areas}
-Link: endereço oficial completo, começando com https://
-Imagem: endereço direto da imagem da capa (e-book) ou da imagem do curso, começando com https://
-Descrição: 1 ou 2 frases dizendo o que a pessoa aprende e se tem certificado
----
-TXT;
+        return FontesCursos::prompt(['quantidade' => $quantidade], $categorias);
     }
 
     public static function categoria(array $competencias): string {

@@ -14,6 +14,9 @@ final class CursoController extends Controller {
     public function lista(): void {
         $tipo = enum_val(get_str('tipo'), CursoDAO::TIPOS, 'curso');
         $filtros = ['q' => get_str('q'), 'categoria_id' => (int)get_str('categoria_id'), 'gratuito' => get_str('gratuito')];
+        // Ordem da vitrine: mais recentes (padrão, como vem do banco), título A–Z ou instituição A–Z.
+        $ordens = ['' => 'Mais recentes', 'titulo' => 'Título (A–Z)', 'instituicao' => 'Instituição (A–Z)'];
+        $ordem = enum_val(get_str('ordem'), array_keys($ordens), '');
         $cursos = []; $categorias = []; $porTipo = array_fill_keys(CursoDAO::TIPOS, 0); $porArea = []; $dbErro = null;
         try {
             // Busca e preço vêm do banco; formato e área são separados aqui, para contar as abas e os atalhos de área.
@@ -24,6 +27,7 @@ final class CursoController extends Controller {
                 if ($c['tipo'] === $tipo && $c['categoria_id']) $porArea[(int)$c['categoria_id']] = ($porArea[(int)$c['categoria_id']] ?? 0) + 1;
             }
             $cursos = array_values(array_filter($base, fn($c) => $c['tipo'] === $tipo && $naArea($c)));
+            if ($ordem !== '') $cursos = ordenar_linhas($cursos, $ordem, 'asc');
             $categorias = (new CategoriaDAO())->listar('curso', true);
         } catch (Throwable $e) { $dbErro = mensagem_erro_banco($e); }
         // Atalhos de área: só as áreas que têm conteúdo neste formato, da maior para a menor.
@@ -54,7 +58,7 @@ final class CursoController extends Controller {
         [$tituloPag, $subPag] = $cabecalhos[$tipo];
         $nomeFormato = mb_strtolower(pt_secao_formato($tipo)[0]);   // "cursos", "e-books", "vídeos"
         // Link de cada aba/página: "cursos.php" (cursos), "?tipo=ebook", "?tipo=video" — mantendo os filtros.
-        $qsFiltros = array_filter(['q' => $filtros['q'], 'categoria_id' => $filtros['categoria_id'] ?: '', 'gratuito' => $filtros['gratuito']]);
+        $qsFiltros = array_filter(['q' => $filtros['q'], 'categoria_id' => $filtros['categoria_id'] ?: '', 'gratuito' => $filtros['gratuito'], 'ordem' => $ordem]);
         $linkLista = fn(string $t, array $extra = []) => url('cursos.php'.(($q = http_build_query(array_filter($extra + $qsFiltros + ($t !== 'curso' ? ['tipo' => $t] : [])))) !== '' ? '?'.$q : ''));
         $abaUrl = fn(string $t) => $linkLista($t);
         $limparUrl = pt_secao_formato($tipo)[1];

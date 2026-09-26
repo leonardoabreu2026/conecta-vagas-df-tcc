@@ -318,3 +318,24 @@ body.cv .ml-memorias h3{margin:0 0 8px;font-size:14px;color:var(--gf-tinta)}
   .ml-palavras{grid-template-columns:1fr}
 }
 .ml-experiencia{margin:0 0 12px;padding:8px 12px;background:#f7f9fc;border:1px solid var(--gf-borda);border-radius:var(--cv-raio);font-size:13.5px;color:var(--gf-tinta2)}
+
+/* ---------- Tabelas: ordenação por coluna, subabas e paginação ---------- */
+.pn-ordem{display:inline-flex;align-items:center;gap:4px;color:inherit;text-decoration:none;white-space:nowrap}
+.pn-ordem:hover{color:var(--cv-azul);text-decoration:underline}
+.pn-ordem-seta{font-size:10px;opacity:.45}
+.pn-ordem.ativo{color:var(--cv-azul)}
+.pn-ordem.ativo .pn-ordem-seta{opacity:1}
+.pn-subabas{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px}
+.pn-subabas a{display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border:1px solid var(--cv-linha);border-radius:999px;background:#fff;
+  color:var(--gf-tinta2);font-size:14px;font-weight:650;text-decoration:none}
+.pn-subabas a:hover{border-color:var(--cv-azul);color:var(--cv-azul)}
+.pn-subabas a.ativo{background:var(--cv-azul);border-color:var(--cv-azul);color:#fff}
+.pn-subabas-n{min-width:22px;padding:1px 7px;border-radius:999px;background:#eef2f8;color:var(--gf-tinta2);font-size:12px;text-align:center}
+.pn-subabas a.ativo .pn-subabas-n{background:#ffffff33;color:#fff}
+.pn-paginacao{margin:16px 0 0}
+.pn-miniatura{width:44px;height:44px;object-fit:cover;border-radius:4px;border:1px solid var(--gf-borda);background:#f4f6f9;display:block}
+.pn-miniatura.ebook{width:34px;height:46px}
+.imp-direcao{margin:10px 0!important}
+.imp-cobertura{margin:4px 0 0}
+.imp-cobertura > summary{cursor:pointer;font-weight:650;color:var(--cv-azul)}
+.imp-cobertura .table-wrap{margin:10px 0 0}

@@ -62,6 +62,21 @@ final class CursoDAO {
         return true;
     }
 
+    /**
+     * Padroniza o nome da instituição pelo link oficial (FontesCursos): "Fundação Bradesco - Escola Virtual"
+     * e "Fundação Bradesco – Escola Virtual" viram um nome só. Devolve quantos conteúdos mudaram.
+     */
+    public function padronizarInstituicoes(): int {
+        $db = Database::getConexao();
+        $up = $db->prepare("UPDATE cursos SET instituicao=? WHERE id=?");
+        $n = 0;
+        foreach ($db->query("SELECT id, instituicao, url FROM cursos")->fetchAll() as $c) {
+            $nome = FontesCursos::nomeOficial((string)$c['instituicao'], (string)$c['url']);
+            if ($nome !== '' && $nome !== (string)$c['instituicao']) { $up->execute([mb_substr($nome, 0, 255), (int)$c['id']]); $n++; }
+        }
+        return $n;
+    }
+
     public function excluir(int $id): bool {
         try {
             $db = Database::getConexao();

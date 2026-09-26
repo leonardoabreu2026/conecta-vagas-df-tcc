@@ -48,7 +48,7 @@ final class EmpresaController extends Controller {
             if ($acao === 'excluir') {
                 $ok = $vagaPermitida($id) && $dao->excluir($id);
                 flash($ok ? 'ok' : 'erro', $ok ? 'Vaga excluída (candidaturas e matches dela também).' : 'Vaga não encontrada ou sem permissão.');
-                redirect('admin/pages/vagas.php'.volta_filtros(['status', 'q']));
+                redirect('admin/pages/vagas.php'.painel_qs());
             }
 
             // Ativar / pausar / encerrar com um clique. Reativar respeita o limite do plano básico.
@@ -76,7 +76,7 @@ final class EmpresaController extends Controller {
                 } else {
                     flash('erro', 'Não foi possível alterar o status da vaga.');
                 }
-                redirect('admin/pages/vagas.php'.volta_filtros(['status', 'q']));
+                redirect('admin/pages/vagas.php'.painel_qs());
             }
 
             $existente = $id ? $vagaPermitida($id) : null;
@@ -93,7 +93,7 @@ final class EmpresaController extends Controller {
                     $cartaz = salvar_imagem_enviada('cartaz', 'cartaz', 8 * 1024 * 1024);
                     if (!$cartaz) {
                         flash('erro', $cartaz === null ? 'Selecione a imagem do cartaz.' : 'Cartaz inválido: envie JPG, PNG ou WEBP de até 8 MB.');
-                        redirect('admin/pages/vagas.php'.($id ? '?edit='.$id : ''));
+                        redirect('admin/pages/vagas.php'.painel_qs($id ? ['edit' => $id] : []));
                     }
                     $this->descartarCartazesLidos();
                     $_SESSION['cartazes_lidos'] = [$cartaz];
@@ -195,7 +195,7 @@ final class EmpresaController extends Controller {
                     } else {
                         flash('erro', 'Não foi possível salvar a vaga.');
                     }
-                    redirect('admin/pages/vagas.php');
+                    redirect('admin/pages/vagas.php'.painel_qs());   // volta para a mesma lista (filtros e ordem)
                 }
             }
         }
@@ -218,6 +218,13 @@ final class EmpresaController extends Controller {
         $buscaN = Competencias::normalizar($busca);
         $lista = array_values(array_filter($todas, fn($x) => ($filtroStatus === '' || $situacao($x) === $filtroStatus)
             && ($buscaN === '' || str_contains(Competencias::normalizar(($x['titulo'] ?? '').' '.($x['empresa_nome'] ?? '').' '.($x['cidade'] ?? '')), $buscaN))));
+        // Ordenação por coluna (padrão: destaque e mais recentes, como vem do banco) e paginação.
+        foreach ($lista as &$x) $x['situacao'] = $situacao($x);
+        unset($x);
+        [$ordem, $dir] = lista_ordem(['padrao', 'titulo', 'empresa_nome', 'situacao', 'total_candidaturas', 'visualizacoes', 'created_at'], 'padrao', 'asc');
+        if ($ordem !== 'padrao') $lista = ordenar_linhas($lista, $ordem, $dir);
+        $totalLista = count($lista);
+        [$lista, $pagina, $paginas] = paginar($lista, 25);
         $imagens = imagens_da_pasta('assets/img/vagas');
         $dinheiro = fn($v) => $v !== null && $v !== '' ? number_format((float)$v, 2, ',', '.') : '';
 
@@ -251,8 +258,7 @@ final class EmpresaController extends Controller {
                 $ok = $status !== '' && (isAdmin() ? $dao->atualizarStatus($id, $status, $obs) : ($perfil && $dao->atualizarStatusPorEmpresa($id, (int)$perfil['id'], $status, $obs)));
                 flash($ok ? 'ok' : 'erro', $ok ? 'Candidatura atualizada. O candidato vê o novo status e o retorno no perfil dele.' : 'Não foi possível atualizar (candidatura inexistente, de outra empresa ou cancelada pelo candidato).');
             }
-            $volta = array_filter(['vaga_id' => post_int('vaga_id') ?: null, 'status' => enum_val(post_str('filtro_status'), CandidaturaDAO::STATUS, '') ?: null]);
-            redirect('admin/pages/candidaturas.php'.($volta ? '?'.http_build_query($volta) : ''));
+            redirect('admin/pages/candidaturas.php'.painel_qs());   // mesma lista: filtros, ordem e página
         }
 
         $vagaId = (int)get_str('vaga_id');
@@ -260,6 +266,18 @@ final class EmpresaController extends Controller {
         $statusPermitidos = isAdmin() ? CandidaturaDAO::STATUS : CandidaturaDAO::STATUS_EMPRESA;
         $lista = isAdmin() ? $dao->listarTodas($vagaId, $status) : ($perfil ? $dao->listarPorEmpresa((int)$perfil['id'], $vagaId, $status) : []);
         $vagasFiltro = isAdmin() ? (new VagaDAO())->listar(false) : ($perfil ? (new VagaDAO())->listarPorEmpresa((int)$perfil['id']) : []);
+        // Ordenação: padrão = VIP primeiro e maior match (como vem do banco); ou match, data ou nome.
+        $ordensCand = ['relevancia' => 'Relevância (VIP e match)', 'match' => 'Maior match', 'recentes' => 'Mais recentes', 'antigas' => 'Mais antigas', 'nome' => 'Nome do candidato (A–Z)'];
+        $ordem = enum_val(get_str('ordem'), array_keys($ordensCand), 'relevancia');
+        $lista = match ($ordem) {
+            'match' => ordenar_linhas($lista, 'match_pontuacao', 'desc'),
+            'recentes' => ordenar_linhas($lista, 'data_candidatura', 'desc'),
+            'antigas' => ordenar_linhas($lista, 'data_candidatura', 'asc'),
+            'nome' => ordenar_linhas($lista, 'candidato_nome', 'asc'),
+            default => $lista,
+        };
+        $totalLista = count($lista);
+        [$lista, $pagina, $paginas] = paginar($lista, 20);
 
         $title = 'Candidaturas';
         $abaAtiva = 'candidaturas';
@@ -289,6 +307,13 @@ final class EmpresaController extends Controller {
                 $t['titulo_profissional'] ?? '', $t['habilidades'] ?? '', $t['competencias'] ?? '', $t['experiencias'] ?? '', $t['cursos_complementares'] ?? '',
             ])), $busca)));
         }
+
+        // Ordenação (o nome só entra na ordem para quem vê o nome: plano Premium) e paginação.
+        $ordensTal = ['relevancia' => 'VIP e mais recentes', 'cargo' => 'Cargo (A–Z)', 'cidade' => 'Cidade (A–Z)'] + ($isPremium ? ['nome' => 'Nome (A–Z)'] : []);
+        $ordem = enum_val(get_str('ordem'), array_keys($ordensTal), 'relevancia');
+        if ($ordem !== 'relevancia') $talentos = ordenar_linhas($talentos, ['cargo' => 'titulo_profissional', 'cidade' => 'cidade', 'nome' => 'nome'][$ordem], 'asc');
+        $totalTalentos = count($talentos);
+        [$talentos, $pagina, $paginas] = paginar($talentos, 24);
 
         $title = 'Banco de Talentos';
         $abaAtiva = 'talentos';

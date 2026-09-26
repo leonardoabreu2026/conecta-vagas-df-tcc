@@ -23,15 +23,16 @@ $acoesCab = $isPremium
     </section>
 <?php endif; ?>
 
-<form class="filtros" method="get" style="grid-template-columns:2fr 1fr auto">
+<form class="filtros" method="get" style="grid-template-columns:2fr 1fr 1fr auto">
     <input name="q" placeholder="Cargo, habilidade ou competência (ex.: Excel, Vendas, TI)" value="<?=e($termo)?>" aria-label="Buscar por cargo, habilidade ou competência">
     <input name="cidade" placeholder="Cidade (ex.: Taguatinga)" value="<?=e($cidade)?>" aria-label="Cidade">
+    <select name="ordem" aria-label="Ordenar por"><?php foreach ($ordensTal as $k => $r): ?><option value="<?=$k?>" <?=$ordem === $k ? 'selected' : ''?>>Ordem: <?=e($r)?></option><?php endforeach; ?></select>
     <button class="btn">Pesquisar</button>
 </form>
 <?php if (!$isPremium): ?>
     <p class="small muted">No plano básico, a busca considera cargo, habilidades, experiências e cursos (não o nome do candidato).</p>
 <?php endif; ?>
-<div class="pn-contagem"><h2>Talentos</h2><span><?=gf_num(count($talentos))?> <?=gf_plural(count($talentos), 'candidato com perfil público', 'candidatos com perfil público')?></span></div>
+<div class="pn-contagem"><h2>Talentos</h2><span><?=gf_num($totalTalentos)?> <?=gf_plural($totalTalentos, 'candidato com perfil público', 'candidatos com perfil público')?><?=$paginas > 1 ? ' · página '.$pagina.' de '.$paginas : ''?></span></div>
 
 <?php if (!$talentos): ?>
     <div class="empty">Nenhum talento encontrado com os filtros informados.</div>
@@ -68,4 +69,5 @@ $acoesCab = $isPremium
         <?php endforeach; ?>
     </div>
 <?php endif; ?>
+<?=painel_paginacao($pagina, $paginas)?>
 </div>

@@ -166,7 +166,7 @@ body.cv .progress{border-radius:3px}
 /* ---------- Listagens: filtros, abas e barra de resultado ---------- */
 .cv-filtros{display:grid;grid-template-columns:2fr 1.2fr 1.3fr 1fr 1fr auto;gap:10px;margin:18px 0 12px;padding:12px;background:#fff;border:1px solid var(--cv-linha);border-radius:var(--cv-raio)}
 .cv-filtros input,.cv-filtros select{margin:0;padding:9px 10px;font-size:14px}
-.cv-filtros-cursos{grid-template-columns:2fr 1.3fr 1fr auto}   /* busca, área, preço, botão (os @media abaixo empilham) */
+.cv-filtros-cursos{grid-template-columns:2fr 1.3fr 1fr 1fr auto}   /* busca, área, preço, ordem, botão (os @media abaixo empilham) */
 .cv-abas{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px}
 .cv-abas a{padding:6px 12px;border:1px solid var(--cv-linha);border-radius:4px;background:#fff;color:var(--cv-texto);font-size:13.5px;font-weight:600;text-decoration:none}
 .cv-abas a:hover{border-color:var(--cv-azul);color:var(--cv-azul)}

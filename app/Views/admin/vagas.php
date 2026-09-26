@@ -4,7 +4,6 @@
  * Recebe de EmpresaController::vagas(): $form, $extraido, $relatorioVaga, $textoAnuncio, $parecida, $cats,
  * $empresas, $lista, $porSituacao, $filtroStatus, $busca, $imagens, $isPremium, $ocrDisponivel e $dinheiro.
  */
-$filtrosLista = ['status' => $filtroStatus, 'q' => $busca];
 $planoHtml = '';
 if (isEmpresa()) {
     $planoHtml = $isPremium
@@ -115,7 +114,8 @@ $cartazNoForm = !empty($form['imagem']) && str_starts_with((string)$form['imagem
     </form>
 </div>
 
-<form class="filtros" method="get" style="grid-template-columns:2fr 1fr auto">
+<form class="filtros" method="get" action="#lista-vagas" style="grid-template-columns:2fr 1fr auto">
+    <?php if (get_str('ordem') !== ''): ?><input type="hidden" name="ordem" value="<?=e($ordem)?>"><input type="hidden" name="dir" value="<?=e($dir)?>"><?php endif; ?>
     <input name="q" placeholder="Buscar por título, empresa ou cidade" value="<?=e($busca)?>" aria-label="Buscar por título, empresa ou cidade">
     <select name="status" aria-label="Situação da vaga">
         <option value="">Todas as situações</option>
@@ -125,9 +125,9 @@ $cartazNoForm = !empty($form['imagem']) && str_starts_with((string)$form['imagem
     </select>
     <button class="btn">Filtrar</button>
 </form>
-<div class="pn-contagem"><h2><?=isAdmin() ? 'Vagas cadastradas' : 'Suas vagas'?></h2><span><?=gf_num(count($lista))?> <?=gf_plural(count($lista), 'vaga', 'vagas')?><?=$filtroStatus !== '' || $busca !== '' ? ' · <a href="'.e(url('admin/pages/vagas.php')).'">limpar filtros</a>' : ''?></span></div>
+<div class="pn-contagem" id="lista-vagas"><h2><?=isAdmin() ? 'Vagas cadastradas' : 'Suas vagas'?></h2><span><?=gf_num($totalLista)?> <?=gf_plural($totalLista, 'vaga', 'vagas')?><?=$paginas > 1 ? ' · página '.$pagina.' de '.$paginas : ''?><?=$filtroStatus !== '' || $busca !== '' ? ' · <a href="'.e(url('admin/pages/vagas.php')).'#lista-vagas">limpar filtros</a>' : ''?></span></div>
 <div class="table-wrap"><table class="table">
-    <tr><th>Vaga</th><?php if (isAdmin()): ?><th>Empresa</th><?php endif; ?><th>Situação</th><th class="num">Candidaturas</th><th class="num">Visualizações</th><th>Ações</th></tr>
+    <tr><?=painel_th('titulo', 'Vaga', $ordem, $dir)?><?php if (isAdmin()): ?><?=painel_th('empresa_nome', 'Empresa', $ordem, $dir)?><?php endif; ?><?=painel_th('situacao', 'Situação', $ordem, $dir)?><?=isAdmin() ? '<th class="num">Candidaturas</th>' : painel_th('total_candidaturas', 'Candidaturas', $ordem, $dir, 'num')?><?=painel_th('visualizacoes', 'Visualizações', $ordem, $dir, 'num')?><?=painel_th('created_at', 'Publicada em', $ordem, $dir)?><th>Ações</th></tr>
     <?php foreach ($lista as $x):
         $expirada = $x['status'] === 'ativa' && !empty($x['data_expiracao']) && $x['data_expiracao'] < date('Y-m-d'); ?>
     <tr>
@@ -136,19 +136,21 @@ $cartazNoForm = !empty($form['imagem']) && str_starts_with((string)$form['imagem
         <td><?=$expirada ? painel_status('expirada', 'Expirada') : painel_status((string)$x['status'], $x['status'] === 'ativa' ? 'Aberta' : '')?></td>
         <td class="num"><a href="<?=url('admin/pages/candidaturas.php?vaga_id='.(int)$x['id'])?>"><?=isset($x['total_candidaturas']) ? (int)$x['total_candidaturas'] : 'ver'?></a></td>
         <td class="num"><?=(int)$x['visualizacoes']?></td>
+        <td class="meta"><?=!empty($x['created_at']) ? date('d/m/Y', strtotime((string)$x['created_at'])) : '—'?></td>
         <td><div class="actions">
             <a class="btn btn-sm" href="<?=url('vaga.php?id='.(int)$x['id'])?>" target="_blank" rel="noopener">Ver<span class="sr-only"> a vaga <?=e($x['titulo'])?> (abre em nova aba)</span></a>
-            <a class="btn btn-sm btn-outline" href="?edit=<?=(int)$x['id']?>#form-vaga">Editar</a>
+            <a class="btn btn-sm btn-outline" href="<?=e(painel_qs(['edit' => (int)$x['id']]))?>#form-vaga">Editar<span class="sr-only"> <?=e($x['titulo'])?></span></a>
             <?php if ($x['status'] === 'ativa'): ?>
-                <?=painel_acao('pausar', (int)$x['id'], 'Pausar', 'btn-outline', '', $filtrosLista)?>
+                <?=painel_acao('pausar', (int)$x['id'], 'Pausar')?>
             <?php else: ?>
-                <?=painel_acao('ativar', (int)$x['id'], 'Ativar', 'btn-outline', '', $filtrosLista)?>
+                <?=painel_acao('ativar', (int)$x['id'], 'Ativar')?>
             <?php endif; ?>
-            <?php if ($x['status'] !== 'encerrada'): ?><?=painel_acao('encerrar', (int)$x['id'], 'Encerrar', 'btn-outline', 'Encerrar esta vaga? Ela sai da busca e para de receber candidaturas.', $filtrosLista)?><?php endif; ?>
-            <?=painel_acao('excluir', (int)$x['id'], 'Excluir', 'btn-danger', 'Excluir a vaga e todas as candidaturas dela? Esta ação não pode ser desfeita.', $filtrosLista)?>
+            <?php if ($x['status'] !== 'encerrada'): ?><?=painel_acao('encerrar', (int)$x['id'], 'Encerrar', 'btn-outline', 'Encerrar esta vaga? Ela sai da busca e para de receber candidaturas.')?><?php endif; ?>
+            <?=painel_acao('excluir', (int)$x['id'], 'Excluir', 'btn-danger', 'Excluir a vaga e todas as candidaturas dela? Esta ação não pode ser desfeita.')?>
         </div></td>
     </tr>
     <?php endforeach; ?>
 </table></div>
+<?=painel_paginacao($pagina, $paginas)?>
 <?php if (!$lista): ?><div class="empty"><?=$filtroStatus !== '' || $busca !== '' ? 'Nenhuma vaga com esses filtros.' : 'Nenhuma vaga cadastrada ainda. Use a extração acima para publicar a primeira em segundos.'?></div><?php endif; ?>
 </div>

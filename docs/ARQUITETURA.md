@@ -213,7 +213,8 @@ nível, modelo, descrição, requisitos, benefícios, contato, quantidade de vag
 carga horária, gratuito/preço, modalidade, nível, formato e categoria.
 
 **Importação em lote de cursos e e-books** (painel → Cursos e e-books → "Importar vários"):
-1. o painel mostra um **prompt de pesquisa** pronto (`ExtracaoCurso::promptPesquisa`, com as categorias cadastradas)
+1. o painel monta um **prompt de pesquisa guiada** (`FontesCursos::prompt` — formato, área ou lacunas, fontes oficiais
+   e os links já cadastrados; roteiro completo em **[PESQUISA_CURSOS.md](PESQUISA_CURSOS.md)**)
    para colar numa IA de pesquisa (Perplexity, ChatGPT); ela responde em **fichas** (Título, Tipo, Instituição,
    Modalidade, Cidade, Nível, Carga horária, Gratuito, Preço, Área, Link, Descrição), separadas por `---`;
 2. cola-se a resposta inteira: `ExtracaoCurso::fichas()` limpa o Markdown, separa as fichas e passa cada uma pela
@@ -227,6 +228,11 @@ carga horária, gratuito/preço, modalidade, nível, formato e categoria.
 do conteúdo, "Outros" do mesmo formato (`pt_secao_formato()` em `partials/componentes.php`).
 
 Nada é gravado sem revisão: a extração de vagas e cursos só preenche o formulário (ou a prévia da importação).
+
+**Tabelas do painel (CRUD)**: usuários, categorias, cursos/e-books/vídeos e vagas têm colunas ordenáveis
+(`painel_th()`: clicar ordena, clicar de novo inverte), filtros e paginação (`painel_paginacao()`); candidaturas e
+banco de talentos têm "Ordem:" no filtro. A lógica fica em `app/Core/helpers.php` (`lista_ordem()`, `ordenar_linhas()`,
+`paginar()`, `painel_qs()`) — as ações (salvar, publicar, excluir) voltam para a mesma aba, filtros, ordem e página.
 
 **Aprendizado de máquina**: as regras acima são a base. Linhas soltas do anúncio, área da vaga/curso, empresa ou
 instituição não reconhecida e linhas do currículo sem título de seção também passam pela `MaquinaAprendizado`

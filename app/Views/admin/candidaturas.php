@@ -1,18 +1,20 @@
 <?php
 /**
  * Candidaturas recebidas, com o match de cada candidato (rota admin/pages/candidaturas.php).
- * Recebe de EmpresaController::candidaturas(): $lista, $vagasFiltro, $vagaId, $status e $statusPermitidos.
+ * Recebe de EmpresaController::candidaturas(): $lista (página atual), $totalLista, $pagina, $paginas, $vagasFiltro,
+ * $vagaId, $status, $ordem, $ordensCand e $statusPermitidos.
  */
 ?>
 <div class="pn">
 <?php require __DIR__.'/../layouts/admin_nav.php'; ?>
 <?=painel_cabecalho('Candidaturas recebidas', 'Candidatos VIP primeiro, depois o maior match com a vaga. Mude o status e escreva um retorno: o candidato vê no perfil dele.')?>
-<form class="filtros" method="get" style="grid-template-columns:2fr 1fr auto">
+<form class="filtros" method="get" style="grid-template-columns:2fr 1fr 1fr auto">
     <select name="vaga_id" aria-label="Vaga"><option value="">Todas as vagas</option><?php foreach ($vagasFiltro as $v): ?><option value="<?=(int)$v['id']?>" <?=$vagaId === (int)$v['id'] ? 'selected' : ''?>><?=e($v['titulo'])?><?=isAdmin() ? ' — '.e($v['empresa_nome'] ?? '') : ''?></option><?php endforeach; ?></select>
     <select name="status" aria-label="Status da candidatura"><option value="">Todos os status</option><?php foreach (CandidaturaDAO::STATUS as $s): ?><option value="<?=$s?>" <?=$status === $s ? 'selected' : ''?>><?=e(rotulo($s))?></option><?php endforeach; ?></select>
+    <select name="ordem" aria-label="Ordenar por"><?php foreach ($ordensCand as $k => $r): ?><option value="<?=$k?>" <?=$ordem === $k ? 'selected' : ''?>>Ordem: <?=e($r)?></option><?php endforeach; ?></select>
     <button class="btn">Filtrar</button>
 </form>
-<div class="pn-contagem"><h2>Candidaturas</h2><span><?=gf_num(count($lista))?> <?=gf_plural(count($lista), 'candidatura', 'candidaturas')?><?=$vagaId || $status !== '' ? ' · <a href="'.e(url('admin/pages/candidaturas.php')).'">limpar filtros</a>' : ''?></span></div>
+<div class="pn-contagem"><h2>Candidaturas</h2><span><?=gf_num($totalLista)?> <?=gf_plural($totalLista, 'candidatura', 'candidaturas')?><?=$paginas > 1 ? ' · página '.$pagina.' de '.$paginas : ''?><?=$vagaId || $status !== '' ? ' · <a href="'.e(url('admin/pages/candidaturas.php')).'">limpar filtros</a>' : ''?></span></div>
 
 <?php foreach ($lista as $x): $d = $x['match_detalhes']; $cancelada = $x['status'] === 'cancelada'; ?>
 <article class="pn-cand<?=$x['is_vip'] ? ' vip' : ''?>" aria-labelledby="cand-<?=(int)$x['id']?>">
@@ -44,7 +46,7 @@
         <div class="notice small pn-cand-aviso">O candidato cancelou esta candidatura. Ela fica só como histórico: o contato e o currículo deixam de ficar disponíveis.</div>
     <?php else: ?>
     <form method="post">
-        <input type="hidden" name="csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="id" value="<?=(int)$x['id']?>"><input type="hidden" name="vaga_id" value="<?=$vagaId?>"><input type="hidden" name="filtro_status" value="<?=e($status)?>">
+        <input type="hidden" name="csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="id" value="<?=(int)$x['id']?>">
         <label for="st-<?=(int)$x['id']?>">Status</label>
         <select id="st-<?=(int)$x['id']?>" name="status"><?php foreach ($statusPermitidos as $s): ?><option value="<?=$s?>" <?=$x['status'] === $s ? 'selected' : ''?>><?=e(rotulo($s))?></option><?php endforeach; ?></select>
         <label for="obs-<?=(int)$x['id']?>">Retorno para o candidato</label>
@@ -55,5 +57,6 @@
     <?php endif; ?>
 </article>
 <?php endforeach; ?>
+<?=painel_paginacao($pagina, $paginas)?>
 <?php if (!$lista): ?><div class="empty">Nenhuma candidatura encontrada<?=$vagaId || $status !== '' ? ' com esses filtros' : ''?>.</div><?php endif; ?>
 </div>

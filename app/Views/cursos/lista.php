@@ -4,7 +4,7 @@
  * sem misturar: abas por formato, filtros, "Recomendados para você" (candidato) e grade de cartões.
  * Recebe de CursoController::lista(): $tipo, $filtros, $cursos, $categorias, $porTipo, $recomendados,
  * $faltantesTop, $tituloPag, $subPag, $nomeFormato, $abaUrl, $limparUrl, $dbErro
- * e a paginação ($encontrados, $pagina, $paginas, $porPagina, $qs).
+ * a ordem ($ordem, $ordens) e a paginação ($encontrados, $pagina, $paginas, $porPagina, $qs).
  */
 ?>
 <?=cv_faixa($tituloPag, $subPag, [pt_secao_formato($tipo)[0] => ''])?>
@@ -20,6 +20,7 @@
     <input name="q" placeholder="<?=e($rotuloBusca)?>" value="<?=e($filtros['q'])?>" aria-label="<?=e($rotuloBusca)?>">
     <select name="categoria_id" aria-label="Área"><option value="">Todas as áreas</option><?php foreach ($categorias as $c): ?><option value="<?=(int)$c['id']?>" <?=$filtros['categoria_id'] === (int)$c['id'] ? 'selected' : ''?>><?=e($c['nome'])?></option><?php endforeach; ?></select>
     <select name="gratuito" aria-label="Preço"><option value="">Gratuitos e pagos</option><option value="1" <?=$filtros['gratuito'] === '1' ? 'selected' : ''?>>Só gratuitos</option></select>
+    <select name="ordem" aria-label="Ordenar por"><?php foreach ($ordens as $k => $r): ?><option value="<?=e($k)?>" <?=$ordem === $k ? 'selected' : ''?>><?=e($r)?></option><?php endforeach; ?></select>
     <button class="cv-btn cv-btn-azul"><?=icone('busca', 16)?>Buscar</button>
   </form>
 

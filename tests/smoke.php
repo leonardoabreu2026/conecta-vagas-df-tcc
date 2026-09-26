@@ -99,6 +99,33 @@ confere('ExtracaoCurso: link com parênteses não é cortado (".../Cartilha%20(2
 $comImagem = ExtracaoCurso::fichas("Título: Guia X\nTipo: E-book\nLink: https://x.gov.br/guia.pdf\nImagem: https://x.gov.br/capa.jpg\n---\nTítulo: Curso Y\nLink: https://x.gov.br/y\nImagem: Não encontrada\n---");
 confere('Padrão da ficha tem Imagem: o prompt pede e a máquina lê', str_contains(ExtracaoCurso::promptPesquisa([]), 'Imagem:')
     && ($comImagem[0]['imagem_url'] ?? '') === 'https://x.gov.br/capa.jpg' && ($comImagem[1]['imagem_url'] ?? null) === '');
+// Pesquisa guiada de cursos (FontesCursos): fonte pelo link, nome padronizado, lacunas e prompt direcionado.
+confere('FontesCursos: reconhece a fonte oficial pelo link (subdomínio e gov.br/caminho) e padroniza o nome',
+    FontesCursos::fonteDoLink('https://www.ev.org.br/cursos/x') === 'bradesco' && FontesCursos::fonteDoLink('https://sp.senai.br/c') === 'senai'
+    && FontesCursos::fonteDoLink('https://www.gov.br/investidor/pt-br/a.pdf') === 'cvm' && FontesCursos::fonteDoLink('https://www.gov.br/outra') === ''
+    && FontesCursos::fonteDoLink('https://senai.brasil.com') === '' && FontesCursos::nomeOficial('Fundação Bradesco - Escola Virtual', 'https://www.ev.org.br/c') === 'Fundação Bradesco – Escola Virtual'
+    && FontesCursos::nomeOficial('Instituto X', 'https://x.org/c') === 'Instituto X' && ($lote[0]['instituicao'] ?? '') === 'Fundação Bradesco – Escola Virtual');
+$cob = FontesCursos::cobertura([['tipo' => 'curso', 'categoria_nome' => 'A', 'url' => 'https://www.ev.org.br/1'], ['tipo' => 'ebook', 'categoria_nome' => 'A', 'url' => 'https://cartilha.cert.br/f.pdf'], ['tipo' => 'curso', 'categoria_nome' => 'B', 'url' => '']], ['A', 'B', 'C']);
+$pr = FontesCursos::prompt(['formato' => 'ebook', 'quantidade' => 12], ['A', 'B', 'C'], $cob['lacunas'], ['https://www.ev.org.br/1']);
+confere('FontesCursos: cobertura por área/fonte, lacunas e prompt (formato, lacunas, fontes, não repetir)', $cob['areas']['A']['total'] === 2 && $cob['fontes']['bradesco'] === 1
+    && $cob['lacunas'] === ['C', 'B'] && str_contains($pr, 'liste 12 e-books') && str_contains($pr, 'MENOS conteúdo na plataforma: C, B')
+    && str_contains($pr, 'site:cartilha.cert.br') && !str_contains($pr, 'site:learn.microsoft.com') && str_contains($pr, "NÃO repita")
+    && str_contains($pr, 'https://www.ev.org.br/1') && substr_count($pr, 'CERT.br / NIC.br —') === 1 && str_contains($pr, 'Área: uma destas: A | B | C'));
+$pf = FontesCursos::prompt(['fonte' => 'sebrae', 'area' => 'B', 'quantidade' => 99], ['A', 'B']);
+confere('FontesCursos: prompt só numa fonte e numa área (quantidade limitada a 40)', str_contains($pf, 'SOMENTE nesta fonte') && str_contains($pf, 'SEBRAE —')
+    && !str_contains($pf, 'Microsoft Learn') && str_contains($pf, 'Todos da área "B"') && str_contains($pf, 'liste 40 '));
+// Ordenação e paginação das tabelas do painel.
+$linhas = [['id' => 1, 'n' => 'Ética'], ['id' => 2, 'n' => 'abacaxi'], ['id' => 3, 'n' => null], ['id' => 4, 'n' => 'Curso 10'], ['id' => 5, 'n' => 'Curso 9']];
+confere('ordenar_linhas: sem diferenciar maiúsculas/acentos, números naturais, vazios no fim', array_column(ordenar_linhas($linhas, 'n', 'asc'), 'id') === [2, 5, 4, 1, 3]
+    && array_column(ordenar_linhas($linhas, 'n', 'desc'), 'id') === [1, 4, 5, 2, 3]
+    && array_column(ordenar_linhas([['id' => 1, 'v' => '10'], ['id' => 2, 'v' => '9'], ['id' => 3, 'v' => '9']], 'v', 'desc'), 'id') === [1, 3, 2]);   // empate: segue a direção pelo id (como "created_at DESC, id DESC" no banco)
+$_GET = ['pagina' => '99', 'ordem' => 'x; DROP', 'dir' => 'baixo', 'edit' => '5', 'tipo' => 'ebook'];
+[$pg, $numPg, $totPg] = paginar(range(1, 30), 25);
+confere('paginar, lista_ordem e painel_qs: página no limite, campo fora da lista cai no padrão, edit não volta para a lista',
+    $pg === [26, 27, 28, 29, 30] && $numPg === 2 && $totPg === 2 && lista_ordem(['nome'], 'nome', 'desc') === ['nome', 'desc']
+    && (parse_str(substr(painel_qs(['ordem' => 'nome']), 1), $qsPainel) ?? true) && $qsPainel == ['ordem' => 'nome', 'dir' => 'baixo', 'tipo' => 'ebook', 'pagina' => '99']
+    && painel_qs(['pagina' => 1, 'ordem' => '', 'dir' => '']) === '?tipo=ebook');
+$_GET = [];
 confere('ImagemRemota: acha a imagem da página (og:image, "Imagem do curso", galeria de loja) e pula a provisória',
     ImagemRemota::daPagina('<meta content="/img/c.png" property="og:image">', 'https://s.gov.br/cursos/1') === 'https://s.gov.br/img/c.png'
     && ImagemRemota::daPagina('<img src="https://cdn.x.br/imagem_curso_1.jpg" alt="Imagem do curso: X">', 'https://x.br/') === 'https://cdn.x.br/imagem_curso_1.jpg'

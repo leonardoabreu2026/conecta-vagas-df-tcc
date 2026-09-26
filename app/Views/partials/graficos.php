@@ -296,3 +296,40 @@ function painel_decisoes_maquina(array $decisoes, array $rotulos = []): string {
     }
     return $h.'</ul></div>';
 }
+
+/** Cabeçalho de coluna ordenável: clicar ordena por ela; clicar de novo inverte. aria-sort para leitor de tela. */
+function painel_th(string $campo, string $rotulo, string $ordem, string $dir, string $classe = ''): string {
+    $ativo = $ordem === $campo;
+    $novoDir = $ativo && $dir === 'asc' ? 'desc' : 'asc';
+    $seta = $ativo ? ($dir === 'asc' ? '▲' : '▼') : '↕';
+    return '<th'.($classe !== '' ? ' class="'.e($classe).'"' : '').($ativo ? ' aria-sort="'.($dir === 'asc' ? 'ascending' : 'descending').'"' : '').'>'
+         .'<a class="pn-ordem'.($ativo ? ' ativo' : '').'" href="'.e(painel_qs(['ordem' => $campo, 'dir' => $novoDir, 'pagina' => ''])).'">'
+         .e($rotulo).' <span class="pn-ordem-seta" aria-hidden="true">'.$seta.'</span>'
+         .'<span class="sr-only">(ordenar '.($novoDir === 'asc' ? 'crescente' : 'decrescente').')</span></a></th>';
+}
+
+/** Paginação das tabelas do painel (mantém filtros e ordenação). */
+function painel_paginacao(int $pagina, int $paginas): string {
+    if ($paginas <= 1) return '';
+    $h = '<nav class="an-paginacao pn-paginacao" aria-label="Páginas da tabela">';
+    $h .= $pagina > 1 ? '<a class="an-pag-seta" href="'.e(painel_qs(['pagina' => $pagina - 1])).'" rel="prev">‹ Anterior</a>' : '<span class="an-pag-seta" aria-disabled="true">‹ Anterior</span>';
+    $antes = 0;
+    for ($n = 1; $n <= $paginas; $n++) {
+        if ($n !== 1 && $n !== $paginas && abs($n - $pagina) > 1) { if ($antes !== -1) $h .= '<span class="an-pag-reticencias" aria-hidden="true">…</span>'; $antes = -1; continue; }
+        $antes = $n;
+        $h .= $n === $pagina ? '<span class="an-pag-num ativo" aria-current="page"><span class="sr-only">Página </span>'.$n.'</span>'
+                             : '<a class="an-pag-num" href="'.e(painel_qs(['pagina' => $n])).'"><span class="sr-only">Página </span>'.$n.'</a>';
+    }
+    $h .= $pagina < $paginas ? '<a class="an-pag-seta" href="'.e(painel_qs(['pagina' => $pagina + 1])).'" rel="next">Próxima ›</a>' : '<span class="an-pag-seta" aria-disabled="true">Próxima ›</span>';
+    return $h.'</nav>';
+}
+
+/** Abas internas de uma tela (ex.: Cursos · E-books · Vídeos): [valor => [rótulo, contagem]]. */
+function painel_subabas(string $param, string $atual, array $abas, string $rotulo): string {
+    $h = '<nav class="pn-subabas" aria-label="'.e($rotulo).'">';
+    foreach ($abas as $valor => [$texto, $n]) {
+        $ativo = (string)$valor === $atual;
+        $h .= '<a href="'.e(painel_qs([$param => (string)$valor, 'pagina' => ''])).'"'.($ativo ? ' class="ativo" aria-current="page"' : '').'>'.e($texto).' <span class="pn-subabas-n">'.gf_num((int)$n).'</span></a>';
+    }
+    return $h.'</nav>';
+}

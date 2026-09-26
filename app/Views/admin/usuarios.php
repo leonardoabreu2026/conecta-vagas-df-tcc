@@ -1,9 +1,9 @@
 <?php
 /**
  * CRUD de usuários (rota admin/pages/usuarios.php) — só administrador.
- * Recebe de AdminController::usuarios(): $usuarios, $edit, $ver (ficha da conta), $filtroTipo, $busca e $meuId.
+ * Recebe de AdminController::usuarios(): $usuarios (página atual), $totalUsuarios, $pagina, $paginas, $edit, $ver (ficha da conta),
+ * $filtroTipo, $filtroSituacao, $busca, $ordem, $dir e $meuId.
  */
-$filtrosLista = ['tipo' => $filtroTipo, 'q' => $busca];
 ?>
 <div class="pn">
 <?php require __DIR__.'/../layouts/admin_nav.php'; ?>
@@ -60,14 +60,16 @@ $filtrosLista = ['tipo' => $filtroTipo, 'q' => $busca];
     </form>
 </div>
 
-<form class="filtros" method="get" style="grid-template-columns:2fr 1fr auto">
+<form class="filtros" method="get" action="#lista-usuarios" style="grid-template-columns:2fr 1fr 1fr auto">
+    <?php if (get_str('ordem') !== ''): ?><input type="hidden" name="ordem" value="<?=e($ordem)?>"><input type="hidden" name="dir" value="<?=e($dir)?>"><?php endif; ?>
     <input name="q" placeholder="Buscar por nome ou e-mail" value="<?=e($busca)?>" aria-label="Buscar por nome ou e-mail">
     <select name="tipo" aria-label="Tipo de conta"><option value="">Todos os tipos</option><?php foreach (UsuarioDAO::TIPOS as $t): ?><option value="<?=$t?>" <?=$filtroTipo === $t ? 'selected' : ''?>><?=e(rotulo($t))?></option><?php endforeach; ?></select>
+    <select name="situacao" aria-label="Situação da conta"><option value="">Ativas e bloqueadas</option><option value="ativo" <?=$filtroSituacao === 'ativo' ? 'selected' : ''?>>Só ativas</option><option value="bloqueado" <?=$filtroSituacao === 'bloqueado' ? 'selected' : ''?>>Só bloqueadas</option></select>
     <button class="btn">Filtrar</button>
 </form>
-<div class="pn-contagem"><h2>Contas</h2><span><?=gf_num(count($usuarios))?> <?=gf_plural(count($usuarios), 'usuário encontrado', 'usuários encontrados')?></span></div>
+<div class="pn-contagem" id="lista-usuarios"><h2>Contas</h2><span><?=gf_num($totalUsuarios)?> <?=gf_plural($totalUsuarios, 'usuário encontrado', 'usuários encontrados')?><?=$paginas > 1 ? ' · página '.$pagina.' de '.$paginas : ''?><?=$filtroTipo !== '' || $busca !== '' || $filtroSituacao !== '' ? ' · <a href="'.e(url('admin/pages/usuarios.php')).'#lista-usuarios">limpar filtros</a>' : ''?></span></div>
 <div class="table-wrap"><table class="table">
-    <tr><th class="num">ID</th><th>Nome</th><th>E-mail</th><th>Tipo</th><th>Situação</th><th>Último acesso</th><th>Ações</th></tr>
+    <tr><?=painel_th('id', 'ID', $ordem, $dir, 'num')?><?=painel_th('nome', 'Nome', $ordem, $dir)?><?=painel_th('email', 'E-mail', $ordem, $dir)?><?=painel_th('tipo', 'Tipo', $ordem, $dir)?><?=painel_th('ativo', 'Situação', $ordem, $dir)?><?=painel_th('ultimo_acesso', 'Último acesso', $ordem, $dir)?><th>Ações</th></tr>
     <?php foreach ($usuarios as $x): $eu = (int)$x['id'] === $meuId; ?>
     <tr>
         <td class="num meta"><?=(int)$x['id']?></td><td><?=e($x['nome'])?><?=$eu ? ' <small class="meta">(você)</small>' : ''?></td><td><?=e($x['email'])?></td>
@@ -75,15 +77,16 @@ $filtrosLista = ['tipo' => $filtroTipo, 'q' => $busca];
         <td><?=$x['ativo'] ? painel_status('ativo', 'Ativo') : painel_status('bloqueado', 'Bloqueado')?></td>
         <td class="meta"><?=$x['ultimo_acesso'] ? date('d/m/Y H:i', strtotime($x['ultimo_acesso'])) : '—'?></td>
         <td><div class="actions">
-            <a class="btn btn-sm" href="?ver=<?=(int)$x['id']?><?=$filtroTipo !== '' ? '&amp;tipo='.e($filtroTipo) : ''?><?=$busca !== '' ? '&amp;q='.e(urlencode($busca)) : ''?>">Ver<span class="sr-only"> <?=e($x['nome'])?></span></a>
-            <a class="btn btn-sm btn-outline" href="?edit=<?=(int)$x['id']?>#form-usuario">Editar</a>
+            <a class="btn btn-sm" href="<?=e(painel_qs(['ver' => (int)$x['id']]))?>">Ver<span class="sr-only"> <?=e($x['nome'])?></span></a>
+            <a class="btn btn-sm btn-outline" href="<?=e(painel_qs(['edit' => (int)$x['id']]))?>#form-usuario">Editar<span class="sr-only"> <?=e($x['nome'])?></span></a>
             <?php if (!$eu): ?>
-                <?=$x['ativo'] ? painel_acao('desativar', (int)$x['id'], 'Bloquear', 'btn-outline', 'Bloquear esta conta? A pessoa perde o acesso na hora.', $filtrosLista) : painel_acao('ativar', (int)$x['id'], 'Ativar', 'btn-outline', '', $filtrosLista)?>
+                <?=$x['ativo'] ? painel_acao('desativar', (int)$x['id'], 'Bloquear', 'btn-outline', 'Bloquear esta conta? A pessoa perde o acesso na hora.') : painel_acao('ativar', (int)$x['id'], 'Ativar')?>
                 <?=painel_acao('excluir', (int)$x['id'], 'Excluir', 'btn-danger', 'Excluir este usuário e todos os dados dele? Esta ação não pode ser desfeita.')?>
             <?php endif; ?>
         </div></td>
     </tr>
     <?php endforeach; ?>
 </table></div>
+<?=painel_paginacao($pagina, $paginas)?>
 <?php if (!$usuarios): ?><div class="empty">Nenhum usuário encontrado.</div><?php endif; ?>
 </div>

@@ -42,6 +42,55 @@ function volta_filtros(array $chaves): string {
     return $q ? '?'.http_build_query($q) : '';
 }
 
+/**
+ * Ordenação das tabelas do painel (?ordem=campo&dir=asc|desc): só aceita os campos permitidos.
+ * @return array{0:string,1:string} [campo, direção]
+ */
+function lista_ordem(array $permitidos, string $padrao, string $dirPadrao = 'asc'): array {
+    $campo = enum_val(get_str('ordem'), $permitidos, $padrao);
+    $dir = enum_val(get_str('dir'), ['asc', 'desc'], $campo === $padrao ? $dirPadrao : 'asc');
+    return [$campo, $dir];
+}
+
+/** Ordena as linhas pelo campo (números como números, textos sem diferenciar maiúsculas/acentos); vazios sempre no fim. */
+function ordenar_linhas(array $linhas, string $campo, string $dir = 'asc'): array {
+    $chave = static function (mixed $v): mixed {
+        if ($v === null || $v === '') return null;
+        if (is_numeric($v)) return (float)$v;
+        return Competencias::normalizar((string)$v);
+    };
+    usort($linhas, function ($a, $b) use ($campo, $dir, $chave) {
+        [$x, $y] = [$chave($a[$campo] ?? null), $chave($b[$campo] ?? null)];
+        if ($x === null || $y === null) return ($x === null) <=> ($y === null) ?: ((int)($a['id'] ?? 0) <=> (int)($b['id'] ?? 0));
+        $c = is_float($x) && is_float($y) ? $x <=> $y : strnatcmp((string)$x, (string)$y);
+        if ($c === 0) $c = (int)($a['id'] ?? 0) <=> (int)($b['id'] ?? 0);   // desempate estável pelo id
+        return $dir === 'desc' ? -$c : $c;
+    });
+    return $linhas;
+}
+
+/**
+ * Página atual de uma lista (?pagina=N).
+ * @return array{0:array,1:int,2:int} [linhas da página, página, total de páginas]
+ */
+function paginar(array $linhas, int $porPagina = 25): array {
+    $paginas = max(1, (int)ceil(count($linhas) / $porPagina));
+    $pagina = min(max(1, (int)get_str('pagina')), $paginas);
+    return [array_slice(array_values($linhas), ($pagina - 1) * $porPagina, $porPagina), $pagina, $paginas];
+}
+
+/**
+ * Endereço da própria lista com os filtros atuais trocando só o que vier em $troca
+ * (ordem, dir, pagina, tipo...). Não leva edit/ver: abrir um formulário não muda a lista.
+ */
+function painel_qs(array $troca = []): string {
+    $q = array_filter(array_map(fn($v) => is_scalar($v) ? (string)$v : '', $_GET), fn($v) => $v !== '');
+    unset($q['edit'], $q['ver'], $q['novo']);
+    $q = array_filter($troca + $q, fn($v) => $v !== '' && $v !== null);
+    if ((int)($q['pagina'] ?? 1) <= 1) unset($q['pagina']);
+    return '?'.http_build_query($q);
+}
+
 /** Valor digitado anteriormente (para repreencher o formulário depois de um erro), já escapado. */
 function old(string $key,string $default=''): string { $v=$_POST[$key]??$default; return e(is_scalar($v) ? (string)$v : $default); }
 

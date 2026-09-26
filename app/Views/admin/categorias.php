@@ -1,7 +1,8 @@
 <?php
 /**
  * CRUD de categorias de vagas e cursos (rota admin/pages/categorias.php) — só administrador.
- * Recebe de AdminController::categorias(): $cats e $edit.
+ * Recebe de AdminController::categorias(): $cats (página atual), $todasCats, $totalCats, $pagina, $paginas, $edit,
+ * $filtroTipo, $busca, $ordem e $dir.
  */
 ?>
 <div class="pn">
@@ -19,9 +20,16 @@
         <div class="form-actions"><button class="btn">Salvar</button><?php if ($edit): ?><a class="btn btn-outline" href="<?=url('admin/pages/categorias.php')?>">Cancelar</a><?php endif; ?></div>
     </form>
 </div>
-<div class="pn-contagem"><h2>Categorias cadastradas</h2><span><?=gf_num(count(array_filter($cats, fn($c) => $c['tipo'] === 'vaga')))?> de vagas · <?=gf_num(count(array_filter($cats, fn($c) => $c['tipo'] === 'curso')))?> de cursos</span></div>
+<div class="pn-contagem" id="lista-categorias"><h2>Categorias cadastradas</h2><span><?=gf_num($totalCats)?> <?=gf_plural($totalCats, 'categoria', 'categorias')?><?=$paginas > 1 ? ' · página '.$pagina.' de '.$paginas : ''?><?=$filtroTipo !== '' || $busca !== '' ? ' · <a href="'.e(url('admin/pages/categorias.php')).'#lista-categorias">limpar filtros</a>' : ''?></span></div>
+<?=painel_subabas('tipo', $filtroTipo, ['' => ['Todas', count($todasCats)], 'vaga' => ['De vagas', count(array_filter($todasCats, fn($c) => $c['tipo'] === 'vaga'))], 'curso' => ['De cursos e e-books', count(array_filter($todasCats, fn($c) => $c['tipo'] === 'curso'))]], 'Uso da categoria')?>
+<form class="filtros" method="get" action="#lista-categorias" style="grid-template-columns:2fr auto">
+    <?php if ($filtroTipo !== ''): ?><input type="hidden" name="tipo" value="<?=e($filtroTipo)?>"><?php endif; ?>
+    <?php if (get_str('ordem') !== ''): ?><input type="hidden" name="ordem" value="<?=e($ordem)?>"><input type="hidden" name="dir" value="<?=e($dir)?>"><?php endif; ?>
+    <input name="q" placeholder="Buscar categoria pelo nome" value="<?=e($busca)?>" aria-label="Buscar categoria pelo nome">
+    <button class="btn">Filtrar</button>
+</form>
 <div class="table-wrap"><table class="table">
-    <tr><th>Nome</th><th>Usada em</th><th>Situação</th><th class="num">Itens</th><th>Ações</th></tr>
+    <tr><?=painel_th('nome', 'Nome', $ordem, $dir)?><?=painel_th('tipo', 'Usada em', $ordem, $dir)?><?=painel_th('ativo', 'Situação', $ordem, $dir)?><?=painel_th('em_uso', 'Itens', $ordem, $dir, 'num')?><th>Ações</th></tr>
     <?php foreach ($cats as $x): $linkPublico = $x['tipo'] === 'vaga' ? 'vagas.php?categoria_id='.(int)$x['id'] : 'cursos.php?categoria_id='.(int)$x['id']; ?>
     <tr>
         <td><?=e($x['nome'])?></td><td><?=$x['tipo'] === 'vaga' ? 'Vagas' : 'Cursos'?></td>
@@ -29,12 +37,13 @@
         <td class="num"><?=(int)$x['em_uso']?></td>
         <td><div class="actions">
             <a class="btn btn-sm" href="<?=url($linkPublico)?>" target="_blank" rel="noopener">Ver<span class="sr-only"> <?=$x['tipo'] === 'vaga' ? 'vagas' : 'cursos'?> de <?=e($x['nome'])?> (abre em nova aba)</span></a>
-            <a class="btn btn-sm btn-outline" href="?edit=<?=(int)$x['id']?>#form-categoria">Editar</a>
+            <a class="btn btn-sm btn-outline" href="<?=e(painel_qs(['edit' => (int)$x['id']]))?>#form-categoria">Editar<span class="sr-only"> <?=e($x['nome'])?></span></a>
             <?=$x['ativo'] ? painel_acao('desativar', (int)$x['id'], 'Desativar') : painel_acao('ativar', (int)$x['id'], 'Ativar')?>
             <?=painel_acao('excluir', (int)$x['id'], 'Excluir', 'btn-danger', (int)$x['em_uso'] ? 'Esta categoria é usada por '.(int)$x['em_uso'].' item(ns), que ficarão sem categoria. Excluir?' : 'Excluir categoria?')?>
         </div></td>
     </tr>
     <?php endforeach; ?>
 </table></div>
-<?php if (!$cats): ?><div class="empty">Nenhuma categoria cadastrada.</div><?php endif; ?>
+<?=painel_paginacao($pagina, $paginas)?>
+<?php if (!$cats): ?><div class="empty"><?=$filtroTipo !== '' || $busca !== '' ? 'Nenhuma categoria com esses filtros.' : 'Nenhuma categoria cadastrada.'?></div><?php endif; ?>
 </div>

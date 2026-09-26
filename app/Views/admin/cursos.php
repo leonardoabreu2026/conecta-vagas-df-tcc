@@ -1,22 +1,68 @@
 <?php
 /**
  * CRUD de cursos/e-books + extração de cursos (rota admin/pages/cursos.php) — só administrador.
- * Recebe de AdminController::cursos(): $form, $extraido, $cats, $lista, $porTipo, $filtroTipo, $busca, $imagens,
- * $promptPesquisa (prompt para a IA de pesquisa) e $importacao (fichas lidas, aguardando confirmação).
+ * Recebe de AdminController::cursos(): $form, $extraido, $cats, $lista (página atual), $totalLista, $pagina, $paginas,
+ * $porTipo, $filtroTipo, $filtroCat, $filtroSituacao, $busca, $ordem, $dir, $todos, $publicados, $imagens,
+ * $promptPesquisa (prompt da pesquisa guiada), $pesquisa (formato/área/fonte/quantidade escolhidos), $cobertura
+ * (conteúdo por área e por fonte, lacunas), $pesquisaAberta, $semPadrao e $importacao (fichas lidas, aguardando confirmação).
  */
-$filtrosLista = ['tipo' => $filtroTipo, 'q' => $busca];
+$novoRotulo = ['curso' => 'Novo curso', 'ebook' => 'Novo e-book', 'video' => 'Novo vídeo'];
+$botoesNovo = '';
+foreach ($novoRotulo as $t => $r) $botoesNovo .= '<a class="btn btn-sm'.($t === 'curso' ? '' : ' btn-outline').'" href="'.e(url('admin/pages/cursos.php').painel_qs(['novo' => $t])).'#form-curso">+ '.e($r).'</a>';
+$porTipoTotal = array_count_values(array_column($todos, 'tipo'));
 ?>
 <div class="pn">
 <?php require __DIR__.'/../layouts/admin_nav.php'; ?>
-<?=painel_cabecalho('Cursos e e-books', 'Cursos, e-books e vídeos gratuitos. Cole a divulgação e a máquina de extração preenche o formulário; publique ou oculte pela lista.')?>
+<?=painel_cabecalho('Cursos e e-books', 'Cadastre, veja, edite, publique/oculte e exclua cursos, e-books e vídeos. Cole a divulgação e a máquina de extração preenche o formulário.', $botoesNovo)?>
+<div class="pn-kpis">
+    <?=painel_kpi('Cursos', gf_num($porTipoTotal['curso'] ?? 0), 'cadastrados', 'cursos', 'admin/pages/cursos.php?tipo=curso#lista-cursos')?>
+    <?=painel_kpi('E-books', gf_num($porTipoTotal['ebook'] ?? 0), 'cadastrados', 'ebooks', 'admin/pages/cursos.php?tipo=ebook#lista-cursos')?>
+    <?=painel_kpi('Vídeos', gf_num($porTipoTotal['video'] ?? 0), 'cadastrados', 'play', 'admin/pages/cursos.php?tipo=video#lista-cursos')?>
+    <?=painel_kpi('Publicados', gf_num($publicados), gf_num(count($todos) - $publicados).' oculto(s)', 'painel', 'admin/pages/cursos.php?situacao=publicado#lista-cursos')?>
+</div>
 <div class="form" style="max-width:none">
-    <details class="extrator" id="importar" <?=$importacao ? 'open' : ''?>>
-        <summary>Importar vários de uma vez: pesquise com IA (Perplexity, ChatGPT) e cole a resposta aqui</summary>
+    <details class="extrator" id="importar" <?=$importacao || $pesquisaAberta ? 'open' : ''?>>
+        <summary>Novos links: pesquisa guiada com IA (Perplexity, ChatGPT) e importação de vários de uma vez</summary>
         <ol class="imp-passos">
-            <li><b>Copie o prompt</b> e cole no Perplexity. Ele pesquisa cursos e e-books reais e responde em fichas no padrão da plataforma (título, tipo, instituição, modalidade, cidade, nível, carga horária, preço, área, link, <b>imagem</b> e descrição).
+            <li id="pesquisa"><b>Direcione a pesquisa.</b> Escolha o que buscar; sem área escolhida, o prompt mira as áreas com <b>menos conteúdo</b> e já leva a lista dos links cadastrados para a IA não repetir.
+                <form method="get" action="#pesquisa" class="filtros imp-direcao" style="grid-template-columns:1fr 1.4fr 1.4fr .7fr auto;margin:10px 0">
+                    <?php foreach (['tipo', 'q', 'categoria_id', 'situacao', 'ordem', 'dir'] as $k): if (get_str($k) !== ''): ?><input type="hidden" name="<?=$k?>" value="<?=e(get_str($k))?>"><?php endif; endforeach; ?>
+                    <select name="p_formato" aria-label="Formato a pesquisar"><option value="">Cursos e e-books</option><?php foreach (CursoDAO::TIPOS as $t): ?><option value="<?=$t?>" <?=$pesquisa['formato'] === $t ? 'selected' : ''?>>Só <?=e(mb_strtolower(pt_secao_formato($t)[0]))?></option><?php endforeach; ?></select>
+                    <select name="p_area" aria-label="Área a pesquisar"><option value="">Áreas com menos conteúdo</option><?php foreach ($cobertura['areas'] as $a => $n): ?><option value="<?=e($a)?>" <?=$pesquisa['area'] === $a ? 'selected' : ''?>><?=e($a)?> (<?=(int)$n['total']?>)</option><?php endforeach; ?></select>
+                    <select name="p_fonte" aria-label="Fonte oficial"><option value="">Todas as fontes oficiais</option><?php foreach (FontesCursos::FONTES as $k => $f): ?><option value="<?=e($k)?>" <?=$pesquisa['fonte'] === $k ? 'selected' : ''?>><?=e($f['nome'])?></option><?php endforeach; ?></select>
+                    <input name="p_qtd" type="number" min="5" max="40" value="<?=(int)$pesquisa['quantidade']?>" aria-label="Quantidade de fichas">
+                    <button class="btn btn-outline">Gerar prompt</button>
+                </form>
+                <details class="imp-cobertura">
+                    <summary>Cobertura atual por área e fontes oficiais (onde achar os links)</summary>
+                    <div class="table-wrap"><table class="table">
+                        <tr><th>Área</th><th class="num">Cursos</th><th class="num">E-books</th><th class="num">Vídeos</th><th class="num">Total</th><th><span class="sr-only">Pesquisar</span></th></tr>
+                        <?php foreach ($cobertura['areas'] as $a => $n): $lacuna = in_array($a, $cobertura['lacunas'], true); ?>
+                        <tr><td><?=e($a)?><?=$lacuna ? ' '.painel_status('pausada', 'Lacuna') : ''?></td><td class="num"><?=(int)$n['curso']?></td><td class="num"><?=(int)$n['ebook']?></td><td class="num"><?=(int)$n['video']?></td><td class="num"><b><?=(int)$n['total']?></b></td>
+                            <td><a class="btn btn-sm btn-outline" href="<?=e(painel_qs(['p_area' => $a, 'p_qtd' => $pesquisa['quantidade']]))?>#pesquisa">Pesquisar<span class="sr-only"> <?=e($a)?></span></a></td></tr>
+                        <?php endforeach; ?>
+                    </table></div>
+                    <div class="table-wrap"><table class="table">
+                        <tr><th>Fonte oficial</th><th>Formatos</th><th>Onde é forte</th><th class="num">Já cadastrados</th><th>Catálogo</th></tr>
+                        <?php foreach (FontesCursos::FONTES as $k => $f): ?>
+                        <tr><td><?=e($f['nome'])?><br><small class="meta"><?=e($f['dica'])?></small></td>
+                            <td><?=e(implode(', ', array_map(fn($t) => rotulo($t), $f['formatos'])))?></td><td class="meta"><?=e($f['areas'])?></td>
+                            <td class="num"><?=(int)($cobertura['fontes'][$k] ?? 0)?></td>
+                            <td><div class="actions"><a class="btn btn-sm btn-outline" href="<?=e($f['catalogo'])?>" target="_blank" rel="noopener">Abrir<span class="sr-only"> o catálogo de <?=e($f['nome'])?> (abre em nova aba)</span></a>
+                                <a class="btn btn-sm btn-outline" href="<?=e(painel_qs(['p_fonte' => $k, 'p_qtd' => $pesquisa['quantidade']]))?>#pesquisa">Pesquisar<span class="sr-only"> em <?=e($f['nome'])?></span></a></div></td></tr>
+                        <?php endforeach; ?>
+                    </table></div>
+                    <?php if ($semPadrao): ?>
+                    <form method="post" class="form-actions"><input type="hidden" name="csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="acao" value="padronizar_instituicoes">
+                        <button class="btn btn-sm btn-outline" data-confirm="Padronizar o nome da instituição de <?=(int)$semPadrao?> conteúdo(s) pelo link oficial?">Padronizar nomes de instituição (<?=(int)$semPadrao?>)</button>
+                        <small class="meta">Ex.: "Fundação Bradesco - Escola Virtual" e "Fundação Bradesco – Escola Virtual" viram um nome só.</small></form>
+                    <?php endif; ?>
+                </details>
+            </li>
+            <li><b>Copie o prompt</b> e cole no Perplexity (ou ChatGPT com busca). Ele pesquisa nas fontes oficiais e responde em fichas no padrão da plataforma (título, tipo, instituição, modalidade, cidade, nível, carga horária, preço, área, link, <b>imagem</b> e descrição).
                 <div class="imp-prompt">
                     <label for="imp-prompt" class="sr-only">Prompt de pesquisa</label>
-                    <textarea id="imp-prompt" rows="6" readonly><?=e($promptPesquisa)?></textarea>
+                    <textarea id="imp-prompt" rows="8" readonly><?=e($promptPesquisa)?></textarea>
                     <button type="button" class="btn btn-sm" data-copiar="<?=e($promptPesquisa)?>" data-copiado="Prompt copiado!"><span>Copiar prompt</span></button>
                 </div>
             </li>
@@ -69,7 +115,7 @@ $filtrosLista = ['tipo' => $filtroTipo, 'q' => $busca];
         <?php endif; ?>
     </details>
 
-    <h2 class="pn-form-titulo" id="form-curso"><?=!empty($form['id']) ? 'Editar conteúdo #'.(int)$form['id'] : 'Novo conteúdo'?></h2>
+    <h2 class="pn-form-titulo" id="form-curso"><?=!empty($form['id']) ? 'Editar '.e(mb_strtolower(rotulo((string)$form['tipo']))).' #'.(int)$form['id'] : e($novoRotulo[$form['tipo']] ?? 'Novo conteúdo')?></h2>
     <form method="post" enctype="multipart/form-data">
         <input type="hidden" name="csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="acao" value="salvar"><input type="hidden" name="id" value="<?=(int)($form['id'] ?? 0)?>">
         <?php if (!empty($form['sugestao_maquina'])): ?><input type="hidden" name="sugestao_maquina" value="<?=e((string)$form['sugestao_maquina'])?>"><?php endif; ?>
@@ -89,30 +135,38 @@ $filtrosLista = ['tipo' => $filtroTipo, 'q' => $busca];
         </div>
         <div class="check"><input type="checkbox" name="gratuito" value="1" id="gratuito" <?=(int)$form['gratuito'] ? 'checked' : ''?>><label for="gratuito">Gratuito</label></div>
         <div class="check"><input type="checkbox" name="ativo" value="1" id="ativo" <?=(int)$form['ativo'] ? 'checked' : ''?>><label for="ativo">Publicado (aparece para os usuários)</label></div>
-        <div class="form-actions"><button class="btn">Salvar conteúdo</button><?php if (!empty($form['id']) || $extraido): ?><a class="btn btn-outline" href="<?=url('admin/pages/cursos.php')?>">Cancelar</a><?php endif; ?></div>
+        <div class="form-actions"><button class="btn">Salvar conteúdo</button><?php if (!empty($form['id']) || $extraido): ?><a class="btn btn-outline" href="<?=e(url('admin/pages/cursos.php').painel_qs())?>">Cancelar</a><?php endif; ?></div>
     </form>
 </div>
 
-<form class="filtros" method="get" style="grid-template-columns:2fr 1fr auto">
+<div class="pn-contagem" id="lista-cursos"><h2>Conteúdos cadastrados</h2><span><?=gf_num($totalLista)?> <?=gf_plural($totalLista, 'conteúdo', 'conteúdos')?><?=$paginas > 1 ? ' · página '.$pagina.' de '.$paginas : ''?><?=$filtroTipo !== '' || $comFiltro ? ' · <a href="'.e(url('admin/pages/cursos.php')).'#lista-cursos">limpar filtros</a>' : ''?></span></div>
+<?=painel_subabas('tipo', $filtroTipo, ['' => ['Todos', array_sum($porTipo)], 'curso' => ['Cursos', $porTipo['curso'] ?? 0], 'ebook' => ['E-books', $porTipo['ebook'] ?? 0], 'video' => ['Vídeos', $porTipo['video'] ?? 0]], 'Formato')?>
+<form class="filtros" method="get" action="#lista-cursos" style="grid-template-columns:2fr 1fr 1fr auto">
+    <?php if ($filtroTipo !== ''): ?><input type="hidden" name="tipo" value="<?=e($filtroTipo)?>"><?php endif; ?>
+    <?php if (get_str('ordem') !== ''): ?><input type="hidden" name="ordem" value="<?=e($ordem)?>"><input type="hidden" name="dir" value="<?=e($dir)?>"><?php endif; ?>
     <input name="q" placeholder="Buscar por título, descrição ou instituição" value="<?=e($busca)?>" aria-label="Buscar por título, descrição ou instituição">
-    <select name="tipo" aria-label="Formato"><option value="">Todos os formatos</option><?php foreach (CursoDAO::TIPOS as $t): ?><option value="<?=$t?>" <?=$filtroTipo === $t ? 'selected' : ''?>><?=e(rotulo($t))?> (<?=(int)($porTipo[$t] ?? 0)?>)</option><?php endforeach; ?></select>
+    <select name="categoria_id" aria-label="Área"><option value="">Todas as áreas</option><?php foreach ($cats as $c): ?><option value="<?=(int)$c['id']?>" <?=$filtroCat === (int)$c['id'] ? 'selected' : ''?>><?=e($c['nome'])?></option><?php endforeach; ?></select>
+    <select name="situacao" aria-label="Situação"><option value="">Publicados e ocultos</option><option value="publicado" <?=$filtroSituacao === 'publicado' ? 'selected' : ''?>>Só publicados</option><option value="oculto" <?=$filtroSituacao === 'oculto' ? 'selected' : ''?>>Só ocultos</option></select>
     <button class="btn">Filtrar</button>
 </form>
-<div class="pn-contagem"><h2>Conteúdos cadastrados</h2><span><?=gf_num(count($lista))?> <?=gf_plural(count($lista), 'conteúdo', 'conteúdos')?><?=$filtroTipo !== '' || $busca !== '' ? ' · <a href="'.e(url('admin/pages/cursos.php')).'">limpar filtros</a>' : ''?></span></div>
 <div class="table-wrap"><table class="table">
-    <tr><th>Título</th><th>Formato</th><th>Categoria</th><th>Instituição</th><th>Situação</th><th>Ações</th></tr>
-    <?php foreach ($lista as $x): ?>
+    <tr><th><span class="sr-only">Imagem</span></th><?=painel_th('titulo', 'Título', $ordem, $dir)?><?=painel_th('tipo', 'Formato', $ordem, $dir)?><?=painel_th('categoria_nome', 'Área', $ordem, $dir)?><?=painel_th('instituicao', 'Instituição', $ordem, $dir)?><?=painel_th('ativo', 'Situação', $ordem, $dir)?><?=painel_th('created_at', 'Cadastro', $ordem, $dir)?><th>Ações</th></tr>
+    <?php foreach ($lista as $x): $img = trim((string)$x['imagem']); ?>
     <tr>
-        <td><?=e($x['titulo'])?></td><td><?=e(rotulo($x['tipo']))?></td><td><?=e($x['categoria_nome'] ?? '—')?></td><td><?=e($x['instituicao'] ?? '')?></td>
+        <td><?=$img !== '' ? '<img class="pn-miniatura'.($x['tipo'] === 'ebook' ? ' ebook' : '').'" src="'.e(preg_match('#^https?://#i', $img) ? $img : url($img)).'" alt="" loading="lazy">' : '<span class="meta">—</span>'?></td>
+        <td><?=e($x['titulo'])?><br><small class="meta">#<?=(int)$x['id']?><?=$x['duracao'] ? ' · '.e($x['duracao']) : ''?> · <?=e(pt_preco($x))?></small></td>
+        <td><?=e(rotulo($x['tipo']))?></td><td><?=e($x['categoria_nome'] ?? '—')?></td><td><?=e($x['instituicao'] ?? '')?></td>
         <td><?=$x['ativo'] ? painel_status('publicado', 'Publicado') : painel_status('oculto', 'Oculto')?></td>
+        <td class="meta"><?=$x['created_at'] ? date('d/m/Y', strtotime((string)$x['created_at'])) : '—'?></td>
         <td><div class="actions">
             <a class="btn btn-sm" href="<?=url('curso.php?id='.(int)$x['id'])?>" target="_blank" rel="noopener">Ver<span class="sr-only"> <?=e($x['titulo'])?> (abre em nova aba)</span></a>
-            <a class="btn btn-sm btn-outline" href="?edit=<?=(int)$x['id']?>#form-curso">Editar</a>
-            <?=$x['ativo'] ? painel_acao('desativar', (int)$x['id'], 'Ocultar', 'btn-outline', '', $filtrosLista) : painel_acao('ativar', (int)$x['id'], 'Publicar', 'btn-outline', '', $filtrosLista)?>
-            <?=painel_acao('excluir', (int)$x['id'], 'Excluir', 'btn-danger', 'Excluir este conteúdo? Esta ação não pode ser desfeita.', $filtrosLista)?>
+            <a class="btn btn-sm btn-outline" href="<?=e(painel_qs(['edit' => (int)$x['id']]))?>#form-curso">Editar<span class="sr-only"> <?=e($x['titulo'])?></span></a>
+            <?=$x['ativo'] ? painel_acao('desativar', (int)$x['id'], 'Ocultar') : painel_acao('ativar', (int)$x['id'], 'Publicar')?>
+            <?=painel_acao('excluir', (int)$x['id'], 'Excluir', 'btn-danger', 'Excluir este conteúdo? Esta ação não pode ser desfeita.')?>
         </div></td>
     </tr>
     <?php endforeach; ?>
 </table></div>
-<?php if (!$lista): ?><div class="empty"><?=$filtroTipo !== '' || $busca !== '' ? 'Nenhum conteúdo com esses filtros.' : 'Nenhum curso ou e-book cadastrado ainda. Use a extração acima para publicar o primeiro.'?></div><?php endif; ?>
+<?=painel_paginacao($pagina, $paginas)?>
+<?php if (!$lista): ?><div class="empty"><?=$filtroTipo !== '' || $comFiltro ? 'Nenhum conteúdo com esses filtros.' : 'Nenhum curso ou e-book cadastrado ainda. Use a extração acima para publicar o primeiro.'?></div><?php endif; ?>
 </div>

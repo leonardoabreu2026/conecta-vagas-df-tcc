@@ -65,6 +65,7 @@ TCC_GUSTAVO/
 │   └── seed.sql           dados de demonstração (contas, vagas, cursos)
 ├── docs/ARQUITETURA.md    como o sistema funciona por dentro (leia para a apresentação)
 ├── docs/APRENDIZADO.md    a máquina de aprendizado: ideia, algoritmo, arquivos e roteiro de demonstração
+├── docs/PESQUISA_CURSOS.md  pesquisa guiada: de onde vêm os links dos novos cursos e e-books
 ├── public/                ÚNICA pasta servida pelo Apache
 │   ├── index.php          front controller: porta de entrada de todas as páginas + tabela de rotas
 │   └── assets/            CSS, JavaScript e imagens (carrossel, cartazes das vagas, capas dos cursos)

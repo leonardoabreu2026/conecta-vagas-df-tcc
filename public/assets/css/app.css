@@ -39,7 +39,8 @@
 .admin-tabs a.active{background:var(--navy);color:#fff;border-color:var(--navy)}
 .extrator{border:1px dashed #93c5fd;background:#f8fbff;border-radius:16px;padding:16px;margin-bottom:18px}
 .extrator summary{cursor:pointer;font-weight:700;color:#1d4ed8}
-@media(max-width:900px){.filtros{grid-template-columns:1fr 1fr}}
+@media(max-width:900px){.filtros{grid-template-columns:1fr 1fr!important}}
+@media(max-width:560px){.filtros{grid-template-columns:1fr!important}}
 
 /* ===================== Portfólio ===================== */
 .pf{--pf-azul:#0b4a9e;--pf-azul2:#1e88ff;--pf-titulo:#0a3a7a;--pf-borda:#dbe7f7;--pf-suave:#f3f8ff}
